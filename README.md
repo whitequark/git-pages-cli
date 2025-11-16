@@ -84,7 +84,8 @@ $ git-pages-cli https://example.org --password xyz --debug-manifest
       "contentType": "text/html; charset=utf-8"
     }
   },
-  "totalSize": "5",
+  "originalSize": "5",
+  "compressedSize": "5",
   "storedSize": "0",
   "redirects": [],
   "headers": [],
