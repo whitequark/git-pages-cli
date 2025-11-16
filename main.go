@@ -39,11 +39,30 @@ func singleOperation() bool {
 	return operations == 1
 }
 
-func archiveFS(fs fs.FS) (result []byte, err error) {
+func displayFS(root fs.FS) error {
+	return fs.WalkDir(root, ".", func(name string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		switch {
+		case entry.Type() == 0:
+			fmt.Fprintln(os.Stderr, "file", name)
+		case entry.Type() == fs.ModeDir:
+			fmt.Fprintln(os.Stderr, "dir", name)
+		case entry.Type() == fs.ModeSymlink:
+			fmt.Fprintln(os.Stderr, "symlink", name)
+		default:
+			fmt.Fprintln(os.Stderr, "other", name)
+		}
+		return nil
+	})
+}
+
+func archiveFS(root fs.FS) (result []byte, err error) {
 	buffer := bytes.Buffer{}
 	zstdWriter, _ := zstd.NewWriter(&buffer)
 	tarWriter := tar.NewWriter(zstdWriter)
-	err = tarWriter.AddFS(fs)
+	err = tarWriter.AddFS(root)
 	if err != nil {
 		return
 	}
@@ -108,6 +127,14 @@ func main() {
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "error: invalid directory: %s\n", err)
 			os.Exit(1)
+		}
+
+		if *verboseFlag {
+			err := displayFS(uploadDirFS.FS())
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "error: %s\n", err)
+				os.Exit(1)
+			}
 		}
 
 		requestBody, err := archiveFS(uploadDirFS.FS())
