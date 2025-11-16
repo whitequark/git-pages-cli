@@ -49,9 +49,10 @@ jobs:
       - name: Build container
         run: |
           printf '[storage]\ndriver="vfs"\nrunroot="/run/containers/storage"\ngraphroot="/var/lib/containers/storage"\n' | tee /etc/containers/storage.conf
-          buildah build --arch=amd64 --tag="codeberg.org/git-pages/git-pages-cli:latest" --isolation=chroot .
-          buildah build --arch=arm64 --tag="codeberg.org/git-pages/git-pages-cli:latest" --isolation=chroot .
+          buildah build --arch=amd64 --tag="codeberg.org/git-pages/git-pages-cli:latest-amd64" --isolation=chroot .
+          buildah build --arch=arm64 --tag="codeberg.org/git-pages/git-pages-cli:latest-arm64" --isolation=chroot .
+          buildah manifest create codeberg.org/git-pages/git-pages-cli:latest codeberg.org/git-pages/git-pages-cli:latest-amd64 codeberg.org/git-pages/git-pages-cli:latest-arm64
       - if: ${{ forge.repository == 'git-pages/git-pages-cli' }}
         name: Push container
         run: |
-          env BUILDAH_ISOLATION=chroot REGISTRY_AUTH_FILE=/tmp/authfile.json buildah manifest push --all "docker://codeberg.org/git-pages/git-pages-cli:latest"
+          env BUILDAH_ISOLATION=chroot REGISTRY_AUTH_FILE=/tmp/authfile.json buildah manifest push --all codeberg.org/git-pages/git-pages-cli:latest "docker://codeberg.org/git-pages/git-pages-cli:latest"
