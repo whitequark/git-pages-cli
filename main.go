@@ -104,7 +104,7 @@ func main() {
 		}
 
 		challenge := sha256.Sum256(fmt.Appendf(nil, "%s %s", siteUrl.Hostname(), *passwordFlag))
-		fmt.Fprintf(os.Stdout, "%s. 3600 IN TXT \"%x\"\n", siteUrl.Hostname(), challenge)
+		fmt.Fprintf(os.Stdout, "_git-pages-challenge.%s. 3600 IN TXT \"%x\"\n", siteUrl.Hostname(), challenge)
 		os.Exit(0)
 
 	case *uploadGitFlag != "":

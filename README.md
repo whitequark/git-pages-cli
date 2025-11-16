@@ -34,7 +34,7 @@ To prepare a DNS challenge for a given site and password:
 
 ```console
 $ git-pages-cli https://mycoolweb.site --password xyz --challenge
-mycoolweb.site. 3600 IN TXT "317716dee4379c167e8b5ce9df38eb880e043e5a842d160fe8d5bb408ee0c191"
+_git-pages-challenge.mycoolweb.site. 3600 IN TXT "317716dee4379c167e8b5ce9df38eb880e043e5a842d160fe8d5bb408ee0c191"
 ```
 
 To deploy a site from a git repository available on the internet (`--password` may be omitted if the repository is allowlisted via DNS):
