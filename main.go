@@ -61,8 +61,11 @@ func archiveFS(fs fs.FS) (result []byte, err error) {
 
 func main() {
 	pflag.Parse()
-	if singleOperation() || len(pflag.Args()) != 1 {
-		fmt.Fprintf(os.Stderr, "Usage: %s [-upload-git url|-upload-dir path|-delete] <site-url>\n", os.Args[0])
+	if !singleOperation() || len(pflag.Args()) != 1 {
+		fmt.Fprintf(os.Stderr,
+			"Usage: %s <site-url> [--challenge|--upload-git url|--upload-dir path|--delete]\n",
+			os.Args[0],
+		)
 		os.Exit(125)
 	}
 
@@ -77,7 +80,7 @@ func main() {
 	switch {
 	case *challengeFlag:
 		if *passwordFlag == "" {
-			fmt.Fprintf(os.Stderr, "error: no password specified")
+			fmt.Fprintf(os.Stderr, "error: no --password option specified\n")
 			os.Exit(1)
 		}
 
