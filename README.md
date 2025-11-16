@@ -1,7 +1,7 @@
 git-pages-cli
 =============
 
-_git-pages-cli_ is a command-line application for uploading sites to [git-pages].
+_git-pages-cli_ is a command-line application for publishing sites to [git-pages].
 
 If you want to publish a site from a Forgejo Actions workflow, use [git-pages/action] instead.
 
@@ -39,14 +39,14 @@ $ git-pages-cli https://example.org --password xyz --challenge-bare
 317716dee4379c167e8b5ce9df38eb880e043e5a842d160fe8d5bb408ee0c191
 ```
 
-To upload a site from a git repository available on the internet (`--password` may be omitted if the repository is allowlisted via DNS):
+To publish a site from a git repository available on the internet (`--password` may be omitted if the repository is allowlisted via DNS):
 
 ```console
 $ git-pages-cli https://example.org --upload-git https://codeberg.org/username/example.org.git
 $ git-pages-cli https://example.org --password xyz --upload-git https://codeberg.org/username/example.org.git
 ```
 
-To upload a site from a directory on your machine:
+To publish a site from a directory on your machine:
 
 ```console
 $ git-pages-cli https://example.org --password xyz --upload-dir site-contents
@@ -58,7 +58,7 @@ To delete a site:
 $ git-pages-cli https://example.org --password xyz --delete
 ```
 
-It is not possible to upload a site to a domain for the first time using HTTPS, since the git-pages server is not allowed to acquire a TLS certificate for a domain before a site is published on that domain. Either use plain HTTP instead, or provide a hostname for which the server *does* have a TLS certificate using the `--server` option:
+It is not possible to publish a site to a domain for the first time using HTTPS, since the git-pages server is not allowed to acquire a TLS certificate for a domain before a site is published on that domain. Either use plain HTTP instead, or provide a hostname for which the server *does* have a TLS certificate using the `--server` option:
 
 ```console
 $ git-pages-cli https://example.org --server grebedoc.dev --password xyz --upload-dir ...
