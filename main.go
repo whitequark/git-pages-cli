@@ -190,7 +190,7 @@ func main() {
 		// This allows first-time publishing to proceed without the git-pages server yet having
 		// a TLS certificate for the site host (which has a circular dependency on completion of
 		// first-time publishing).
-		newURL := *siteURL
+		newURL := *request.URL
 		newURL.Host = *serverFlag
 		request.URL = &newURL
 		request.Header.Set("Host", siteURL.Host)
