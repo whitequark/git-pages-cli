@@ -15,7 +15,7 @@ Installation
 You will need [Go](https://go.dev/) 1.25 or newer. Run:
 
 ```console
-$ go install codeberg.org/git-pages/git-pages-cli
+$ go install codeberg.org/git-pages/git-pages-cli@latest
 ```
 
 If you prefer, you may also use a [Docker container][docker]:
