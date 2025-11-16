@@ -21,12 +21,14 @@ jobs:
         run: |
           apt-get -y update
           apt-get -y install ca-certificates
+          go install honnef.co/go/tools/cmd/staticcheck@latest
       - name: Build application
         run: |
           go build .
       - name: Run static analysis
         run: |
           go vet .
+          staticcheck .
 
   package:
     if: ${{ forge.ref == 'refs/heads/main' }}
