@@ -29,6 +29,7 @@ mycoolweb.site. 3600 IN TXT "317716dee4379c167e8b5ce9df38eb880e043e5a842d160fe8d
 To deploy a site from a git repository available on the internet (`--password` may be omitted if the repository is allowlisted via DNS):
 
 ```console
+$ git-pages-cli https://mycoolweb.site --upload-git https://codeberg.org/username/mycoolweb.site.git
 $ git-pages-cli https://mycoolweb.site --password xyz --upload-git https://codeberg.org/username/mycoolweb.site.git
 ```
 
