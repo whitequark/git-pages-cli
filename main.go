@@ -16,7 +16,8 @@ import (
 )
 
 var passwordFlag = pflag.String("password", "", "password for DNS challenge authorization")
-var challengeFlag = pflag.Bool("challenge", false, "compute DNS challenge entry from password")
+var challengeFlag = pflag.Bool("challenge", false, "compute DNS challenge entry from password (output zone file record)")
+var challengeBareFlag = pflag.Bool("challenge-bare", false, "compute DNS challenge entry from password (output bare TXT value)")
 var uploadGitFlag = pflag.String("upload-git", "", "replace site with contents of specified git repository")
 var uploadDirFlag = pflag.String("upload-dir", "", "replace site with contents of specified directory")
 var deleteFlag = pflag.Bool("delete", false, "delete site")
@@ -25,6 +26,9 @@ var verboseFlag = pflag.Bool("verbose", false, "display more information for deb
 func singleOperation() bool {
 	operations := 0
 	if *challengeFlag {
+		operations++
+	}
+	if *challengeBareFlag {
 		operations++
 	}
 	if *uploadDirFlag != "" {
@@ -97,14 +101,18 @@ func main() {
 
 	var request *http.Request
 	switch {
-	case *challengeFlag:
+	case *challengeFlag || *challengeBareFlag:
 		if *passwordFlag == "" {
 			fmt.Fprintf(os.Stderr, "error: no --password option specified\n")
 			os.Exit(1)
 		}
 
 		challenge := sha256.Sum256(fmt.Appendf(nil, "%s %s", siteUrl.Hostname(), *passwordFlag))
-		fmt.Fprintf(os.Stdout, "_git-pages-challenge.%s. 3600 IN TXT \"%x\"\n", siteUrl.Hostname(), challenge)
+		if *challengeBareFlag {
+			fmt.Fprintf(os.Stdout, "%x\n", challenge)
+		} else {
+			fmt.Fprintf(os.Stdout, "_git-pages-challenge.%s. 3600 IN TXT \"%x\"\n", siteUrl.Hostname(), challenge)
+		}
 		os.Exit(0)
 
 	case *uploadGitFlag != "":
