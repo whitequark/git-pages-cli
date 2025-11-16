@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"os"
 
+	"github.com/google/uuid"
 	"github.com/klauspost/compress/zstd"
 	"github.com/spf13/pflag"
 )
@@ -108,8 +109,8 @@ func main() {
 	switch {
 	case *challengeFlag || *challengeBareFlag:
 		if *passwordFlag == "" {
-			fmt.Fprintf(os.Stderr, "error: no --password option specified\n")
-			os.Exit(1)
+			*passwordFlag = uuid.NewString()
+			fmt.Fprintf(os.Stderr, "password: %s\n", *passwordFlag)
 		}
 
 		challenge := sha256.Sum256(fmt.Appendf(nil, "%s %s", siteURL.Hostname(), *passwordFlag))
