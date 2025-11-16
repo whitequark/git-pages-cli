@@ -10,5 +10,4 @@ RUN GOOS=$TARGETOS GOARCH=$TARGETARCH go build -ldflags "-s -w" .
 FROM scratch
 COPY --from=builder /etc/ssl/cert.pem /etc/ssl/cert.pem
 COPY --from=builder /build/git-pages-cli /bin/git-pages-cli
-
 ENTRYPOINT ["git-pages-cli"]
