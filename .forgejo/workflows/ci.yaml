@@ -41,15 +41,17 @@ jobs:
           apt-get -y install buildah ca-certificates
       - name: Check out source code
         uses: https://code.forgejo.org/actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
-      - if: ${{ forge.repository == 'git-pages/git-pages-cli' && 'true' || 'false' }}
+      - if: ${{ forge.repository == 'git-pages/git-pages-cli' }}
         name: Log into container registry
         run: |
           buildah login --authfile=/tmp/authfile.json \
             -u git-pages-bot -p ${{ secrets.PACKAGES_TOKEN }} codeberg.org
       - name: Build container
-        uses: https://codeberg.org/actions/buildah-simple@main
-        with:
-          context: .
-          tag: "codeberg.org/git-pages/git-pages-cli:latest"
-          push: ${{ forge.repository == 'git-pages/git-pages-cli' && 'true' || 'false' }}
-          authfile: /tmp/authfile.json
+        run: |
+          printf '[storage]\ndriver="vfs"\nrunroot="/run/containers/storage"\ngraphroot="/var/lib/containers/storage"\n' | tee /etc/containers/storage.conf
+          buildah build --arch=amd64 --tag="codeberg.org/git-pages/git-pages-cli:latest" --isolation=chroot .
+          buildah build --arch=arm64 --tag="codeberg.org/git-pages/git-pages-cli:latest" --isolation=chroot .
+      - if: ${{ forge.repository == 'git-pages/git-pages-cli' }}
+        name: Push container
+        run: |
+          env BUILDAH_ISOLATION=chroot REGISTRY_AUTH_FILE=/tmp/authfile.json buildah manifest push --all "docker://codeberg.org/git-pages/git-pages-cli:latest"
