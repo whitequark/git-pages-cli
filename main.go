@@ -21,6 +21,7 @@ var challengeBareFlag = pflag.Bool("challenge-bare", false, "compute DNS challen
 var uploadGitFlag = pflag.String("upload-git", "", "replace site with contents of specified git repository")
 var uploadDirFlag = pflag.String("upload-dir", "", "replace site with contents of specified directory")
 var deleteFlag = pflag.Bool("delete", false, "delete site")
+var serverFlag = pflag.String("server", "", "hostname of server to connect to")
 var verboseFlag = pflag.Bool("verbose", false, "display more information for debugging")
 
 func singleOperation() bool {
@@ -93,7 +94,7 @@ func main() {
 	}
 
 	var err error
-	siteUrl, err := url.Parse(pflag.Args()[0])
+	siteURL, err := url.Parse(pflag.Args()[0])
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: invalid site URL: %s\n", err)
 		os.Exit(1)
@@ -107,11 +108,11 @@ func main() {
 			os.Exit(1)
 		}
 
-		challenge := sha256.Sum256(fmt.Appendf(nil, "%s %s", siteUrl.Hostname(), *passwordFlag))
+		challenge := sha256.Sum256(fmt.Appendf(nil, "%s %s", siteURL.Hostname(), *passwordFlag))
 		if *challengeBareFlag {
 			fmt.Fprintf(os.Stdout, "%x\n", challenge)
 		} else {
-			fmt.Fprintf(os.Stdout, "_git-pages-challenge.%s. 3600 IN TXT \"%x\"\n", siteUrl.Hostname(), challenge)
+			fmt.Fprintf(os.Stdout, "_git-pages-challenge.%s. 3600 IN TXT \"%x\"\n", siteURL.Hostname(), challenge)
 		}
 		os.Exit(0)
 
@@ -123,7 +124,7 @@ func main() {
 		}
 
 		requestBody := []byte(uploadGitUrl.String())
-		request, err = http.NewRequest("PUT", siteUrl.String(), bytes.NewReader(requestBody))
+		request, err = http.NewRequest("PUT", siteURL.String(), bytes.NewReader(requestBody))
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "error: %s\n", err)
 			os.Exit(1)
@@ -151,7 +152,7 @@ func main() {
 			os.Exit(1)
 		}
 
-		request, err = http.NewRequest("PUT", siteUrl.String(), bytes.NewReader(requestBody))
+		request, err = http.NewRequest("PUT", siteURL.String(), bytes.NewReader(requestBody))
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "error: %s\n", err)
 			os.Exit(1)
@@ -159,7 +160,7 @@ func main() {
 		request.Header.Add("Content-Type", "application/x-tar+zstd")
 
 	case *deleteFlag:
-		request, err = http.NewRequest("DELETE", siteUrl.String(), bytes.NewReader([]byte{}))
+		request, err = http.NewRequest("DELETE", siteURL.String(), bytes.NewReader([]byte{}))
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "error: %s\n", err)
 			os.Exit(1)
@@ -170,6 +171,16 @@ func main() {
 	}
 	if *passwordFlag != "" {
 		request.Header.Add("Authorization", fmt.Sprintf("Pages %s", *passwordFlag))
+	}
+	if *serverFlag != "" {
+		// Send the request to `--server` host, but set the `Host:` header to the site host.
+		// This allows first-time publishing to proceed without the git-pages server yet having
+		// a TLS certificate for the site host (which has a circular dependency on completion of
+		// first-time publishing).
+		newURL := *siteURL
+		newURL.Host = *serverFlag
+		request.URL = &newURL
+		request.Header.Set("Host", siteURL.Host)
 	}
 
 	response, err := http.DefaultClient.Do(request)

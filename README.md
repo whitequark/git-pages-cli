@@ -39,14 +39,14 @@ $ git-pages-cli https://mycoolweb.site --password xyz --challenge-bare
 317716dee4379c167e8b5ce9df38eb880e043e5a842d160fe8d5bb408ee0c191
 ```
 
-To deploy a site from a git repository available on the internet (`--password` may be omitted if the repository is allowlisted via DNS):
+To upload a site from a git repository available on the internet (`--password` may be omitted if the repository is allowlisted via DNS):
 
 ```console
 $ git-pages-cli https://mycoolweb.site --upload-git https://codeberg.org/username/mycoolweb.site.git
 $ git-pages-cli https://mycoolweb.site --password xyz --upload-git https://codeberg.org/username/mycoolweb.site.git
 ```
 
-To deploy a site from a directory on your machine:
+To upload a site from a directory on your machine:
 
 ```console
 $ git-pages-cli https://mycoolweb.site --password xyz --upload-dir site-contents
@@ -56,6 +56,12 @@ To delete a site:
 
 ```console
 $ git-pages-cli https://mycoolweb.site --password xyz --delete
+```
+
+It is not possible to upload a site to a domain for the first time using HTTPS, since the git-pages server is not allowed to acquire a TLS certificate for a domain before a site is published on that domain. Either use plain HTTP instead, or provide a hostname for which the server *does* have a TLS certificate using the `--server` option:
+
+```console
+$ git-pages-cli https://mycoolweb.site --server grebedoc.dev --password xyz --upload-dir ...
 ```
 
 
