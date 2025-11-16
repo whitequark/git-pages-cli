@@ -65,6 +65,34 @@ $ git-pages-cli https://example.org --server grebedoc.dev --password xyz --uploa
 ```
 
 
+Advanced usage
+--------------
+
+To retrieve the site manifest (for debugging only: manifest schema is **not versioned** and **subject to change**):
+
+```console
+$ git-pages-cli https://example.org --password xyz --debug-manifest
+{
+  "contents": {
+    "": {
+      "type": "Directory"
+    },
+    "index.html": {
+      "type": "InlineFile",
+      "size": "5",
+      "data": "bWVvdwo=",
+      "contentType": "text/html; charset=utf-8"
+    }
+  },
+  "totalSize": "5",
+  "storedSize": "0",
+  "redirects": [],
+  "headers": [],
+  "problems": []
+}
+```
+
+
 License
 -------
 

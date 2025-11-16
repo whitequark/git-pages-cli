@@ -21,6 +21,7 @@ var challengeBareFlag = pflag.Bool("challenge-bare", false, "compute DNS challen
 var uploadGitFlag = pflag.String("upload-git", "", "replace site with contents of specified git repository")
 var uploadDirFlag = pflag.String("upload-dir", "", "replace site with contents of specified directory")
 var deleteFlag = pflag.Bool("delete", false, "delete site")
+var debugManifestFlag = pflag.Bool("debug-manifest", false, "retrieve site manifest as ProtoJSON, for debugging")
 var serverFlag = pflag.String("server", "", "hostname of server to connect to")
 var verboseFlag = pflag.Bool("verbose", false, "display more information for debugging")
 
@@ -39,6 +40,9 @@ func singleOperation() bool {
 		operations++
 	}
 	if *deleteFlag {
+		operations++
+	}
+	if *debugManifestFlag {
 		operations++
 	}
 	return operations == 1
@@ -166,6 +170,14 @@ func main() {
 			os.Exit(1)
 		}
 
+	case *debugManifestFlag:
+		manifestURL := siteURL.ResolveReference(&url.URL{Path: ".git-pages/manifest.json"})
+		request, err = http.NewRequest("GET", manifestURL.String(), bytes.NewReader([]byte{}))
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "error: %s\n", err)
+			os.Exit(1)
+		}
+
 	default:
 		panic("no operation chosen")
 	}
@@ -191,12 +203,22 @@ func main() {
 	if *verboseFlag {
 		fmt.Fprintf(os.Stderr, "server: %s\n", response.Header.Get("Server"))
 	}
-	if response.StatusCode == 200 {
-		fmt.Fprintf(os.Stdout, "result: %s\n", response.Header.Get("Update-Result"))
-		os.Exit(0)
-	} else {
-		fmt.Fprintf(os.Stderr, "result: error\n")
-		io.Copy(os.Stderr, response.Body)
-		os.Exit(1)
+	if *debugManifestFlag {
+		if response.StatusCode == 200 {
+			io.Copy(os.Stdout, response.Body)
+			fmt.Fprintf(os.Stdout, "\n")
+		} else {
+			io.Copy(os.Stderr, response.Body)
+			os.Exit(1)
+		}
+	} else { // an update operation
+		if response.StatusCode == 200 {
+			fmt.Fprintf(os.Stdout, "result: %s\n", response.Header.Get("Update-Result"))
+			io.Copy(os.Stdout, response.Body)
+		} else {
+			fmt.Fprintf(os.Stderr, "result: error\n")
+			io.Copy(os.Stderr, response.Body)
+			os.Exit(1)
+		}
 	}
 }
