@@ -68,7 +68,7 @@ $ git-pages-cli https://example.org --server grebedoc.dev --password xyz --uploa
 Advanced usage
 --------------
 
-To retrieve the site manifest (for debugging only: manifest schema is **not versioned** and **subject to change**):
+To retrieve the site manifest (for debugging only: manifest schema is not versioned and **subject to change without notice**, including renaming of existing fields):
 
 ```console
 $ git-pages-cli https://example.org --password xyz --debug-manifest
