@@ -5,6 +5,7 @@
   ],
   "abandonmentThreshold": null,
   "packageRules": [],
+  "automerge": false,
   "lockFileMaintenance": {
     "enabled": true,
     "automerge": false
