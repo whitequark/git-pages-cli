@@ -92,12 +92,24 @@ jobs:
           BUILDAH_ISOLATION: chroot
           VER: ${{ startsWith(forge.event.ref, 'refs/tags/v') && forge.ref_name || 'latest' }}
       - if: ${{ forge.repository == 'git-pages/git-pages-cli' }}
-        name: Push container
+        name: Push container to Codeberg
         run: |
-          buildah login --authfile=/tmp/authfile.json \
-            -u ${{ vars.PACKAGES_USER }} -p ${{ secrets.PACKAGES_TOKEN }} codeberg.org
-          buildah manifest push --authfile=/tmp/authfile.json \
-            --all container:${VER} "docker://codeberg.org/${{ forge.repository }}:${VER/v/}"
+          buildah login --authfile=/tmp/authfile-${FORGE}.json \
+            -u ${{ vars.PACKAGES_USER }} -p ${{ secrets.PACKAGES_TOKEN }} ${FORGE}
+          buildah manifest push --authfile=/tmp/authfile-${FORGE}.json \
+            --all container:${VER} "docker://${FORGE}/${{ forge.repository }}:${VER/v/}"
         env:
           BUILDAH_ISOLATION: chroot
+          FORGE: codeberg.org
+          VER: ${{ startsWith(forge.event.ref, 'refs/tags/v') && forge.ref_name || 'latest' }}
+      - if: ${{ forge.repository == 'git-pages/git-pages-cli' }}
+        name: Push container to code.forgejo.org
+        run: |
+          buildah login --authfile=/tmp/authfile-${FORGE}.json \
+            -u ${{ vars.PACKAGES_USER }} -p ${{ secrets.CFO_PACKAGES_TOKEN }} ${FORGE}
+          buildah manifest push --authfile=/tmp/authfile-${FORGE}.json \
+            --all container:${VER} "docker://${FORGE}/${{ forge.repository }}:${VER/v/}"
+        env:
+          BUILDAH_ISOLATION: chroot
+          FORGE: code.forgejo.org
           VER: ${{ startsWith(forge.event.ref, 'refs/tags/v') && forge.ref_name || 'latest' }}
