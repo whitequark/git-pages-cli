@@ -12,19 +12,25 @@ If you want to publish a site from a Forgejo Actions workflow, use [git-pages/ac
 Installation
 ------------
 
-You will need [Go](https://go.dev/) 1.25 or newer. Run:
+You can install _git-pages-cli_ using one of the following methods:
 
-```console
-$ go install codeberg.org/git-pages/git-pages-cli@latest
-```
+1. **Downloading a binary**. You can download the [latest build][latest] or pick a [release][releases].
 
-If you prefer, you may also use a [Docker container][docker]:
+1. **Using a Docker container**. Choose between the latest build or a [release tag][containers]. Then run:
 
-```console
-docker run --rm codeberg.org/git-pages/git-pages-cli:latest ...
-```
+   ```console
+   $ docker run --rm codeberg.org/git-pages/git-pages-cli:latest ...
+   ```
 
-[docker]: https://codeberg.org/git-pages/-/packages/container/git-pages-cli/latest
+1. **Installing from source**. First, install [Go](https://go.dev/) 1.25 or newer. Then run:
+
+   ```console
+   $ go install codeberg.org/git-pages/git-pages-cli@latest
+   ```
+
+[latest]: https://codeberg.org/git-pages/git-pages-cli/releases/tag/latest
+[releases]: https://codeberg.org/git-pages/git-pages-cli/releases
+[containers]: https://codeberg.org/git-pages/-/packages/container/git-pages-cli/versions
 
 
 Usage
