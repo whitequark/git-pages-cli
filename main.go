@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"runtime/debug"
 
 	"github.com/google/uuid"
 	"github.com/klauspost/compress/zstd"
@@ -25,6 +26,7 @@ var deleteFlag = pflag.Bool("delete", false, "delete site")
 var debugManifestFlag = pflag.Bool("debug-manifest", false, "retrieve site manifest as ProtoJSON, for debugging")
 var serverFlag = pflag.String("server", "", "hostname of server to connect to")
 var verboseFlag = pflag.Bool("verbose", false, "display more information for debugging")
+var versionFlag = pflag.Bool("version", false, "display version information")
 
 func singleOperation() bool {
 	operations := 0
@@ -46,7 +48,20 @@ func singleOperation() bool {
 	if *debugManifestFlag {
 		operations++
 	}
+	if *versionFlag {
+		operations++
+	}
 	return operations == 1
+}
+
+func versionInfo() string {
+	version := "(unknown)"
+	if versionOverride != "" {
+		version = versionOverride
+	} else if buildInfo, ok := debug.ReadBuildInfo(); ok {
+		version = buildInfo.Main.Version
+	}
+	return fmt.Sprintf("git-pages-cli %s", version)
 }
 
 func displayFS(root fs.FS) error {
@@ -90,12 +105,17 @@ func archiveFS(root fs.FS) (result []byte, err error) {
 
 func main() {
 	pflag.Parse()
-	if !singleOperation() || len(pflag.Args()) != 1 {
+	if !singleOperation() || (!*versionFlag && len(pflag.Args()) != 1) {
 		fmt.Fprintf(os.Stderr,
 			"Usage: %s <site-url> [--challenge|--upload-git url|--upload-dir path|--delete]\n",
 			os.Args[0],
 		)
 		os.Exit(125)
+	}
+
+	if *versionFlag {
+		fmt.Fprintln(os.Stdout, versionInfo())
+		os.Exit(0)
 	}
 
 	var err error
@@ -182,6 +202,7 @@ func main() {
 	default:
 		panic("no operation chosen")
 	}
+	request.Header.Add("User-Agent", versionInfo())
 	if *passwordFlag != "" {
 		request.Header.Add("Authorization", fmt.Sprintf("Pages %s", *passwordFlag))
 	}
