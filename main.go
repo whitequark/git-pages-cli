@@ -17,6 +17,21 @@ import (
 	"github.com/spf13/pflag"
 )
 
+// By default the version information is retrieved from VCS. If not available during build,
+// override this variable using linker flags to change the displayed version.
+// Example: `-ldflags "-X main.versionOverride=v1.2.3"`
+var versionOverride = ""
+
+func versionInfo() string {
+	version := "(unknown)"
+	if versionOverride != "" {
+		version = versionOverride
+	} else if buildInfo, ok := debug.ReadBuildInfo(); ok {
+		version = buildInfo.Main.Version
+	}
+	return fmt.Sprintf("git-pages-cli %s", version)
+}
+
 var passwordFlag = pflag.String("password", "", "password for DNS challenge authorization")
 var tokenFlag = pflag.String("token", "", "token for forge authorization")
 var challengeFlag = pflag.Bool("challenge", false, "compute DNS challenge entry from password (output zone file record)")
@@ -53,22 +68,6 @@ func singleOperation() bool {
 		operations++
 	}
 	return operations == 1
-}
-
-// By default the version information is retrieved from VCS.
-// If not available during build, override this variable
-// using linker flags to change the displayed version.
-// Example: `-ldflags "-X main.versionOverride=v1.2.3"`
-var versionOverride = ""
-
-func versionInfo() string {
-	version := "(unknown)"
-	if versionOverride != "" {
-		version = versionOverride
-	} else if buildInfo, ok := debug.ReadBuildInfo(); ok {
-		version = buildInfo.Main.Version
-	}
-	return fmt.Sprintf("git-pages-cli %s", version)
 }
 
 func displayFS(root fs.FS) error {
