@@ -55,6 +55,12 @@ func singleOperation() bool {
 	return operations == 1
 }
 
+// By default the version information is retrieved from VCS.
+// If not available during build, override this variable
+// using linker flags to change the displayed version.
+// Example: `-ldflags "-X main.versionOverride=v1.2.3"`
+var versionOverride = ""
+
 func versionInfo() string {
 	version := "(unknown)"
 	if versionOverride != "" {
