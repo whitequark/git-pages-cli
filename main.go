@@ -18,6 +18,7 @@ import (
 )
 
 var passwordFlag = pflag.String("password", "", "password for DNS challenge authorization")
+var tokenFlag = pflag.String("token", "", "token for forge authorization")
 var challengeFlag = pflag.Bool("challenge", false, "compute DNS challenge entry from password (output zone file record)")
 var challengeBareFlag = pflag.Bool("challenge-bare", false, "compute DNS challenge entry from password (output bare TXT value)")
 var uploadGitFlag = pflag.String("upload-git", "", "replace site with contents of specified git repository")
@@ -103,6 +104,8 @@ func archiveFS(root fs.FS) (result []byte, err error) {
 	return
 }
 
+const usageExitCode = 125
+
 func main() {
 	pflag.Parse()
 	if !singleOperation() || (!*versionFlag && len(pflag.Args()) != 1) {
@@ -110,12 +113,17 @@ func main() {
 			"Usage: %s <site-url> [--challenge|--upload-git url|--upload-dir path|--delete]\n",
 			os.Args[0],
 		)
-		os.Exit(125)
+		os.Exit(usageExitCode)
 	}
 
 	if *versionFlag {
 		fmt.Fprintln(os.Stdout, versionInfo())
 		os.Exit(0)
+	}
+
+	if *passwordFlag != "" && *tokenFlag != "" {
+		fmt.Fprintf(os.Stderr, "--password and --token are mutually exclusive")
+		os.Exit(usageExitCode)
 	}
 
 	var err error
@@ -203,8 +211,11 @@ func main() {
 		panic("no operation chosen")
 	}
 	request.Header.Add("User-Agent", versionInfo())
-	if *passwordFlag != "" {
+	switch {
+	case *passwordFlag != "":
 		request.Header.Add("Authorization", fmt.Sprintf("Pages %s", *passwordFlag))
+	case *tokenFlag != "":
+		request.Header.Add("Forge-Authorization", fmt.Sprintf("token %s", *tokenFlag))
 	}
 	if *serverFlag != "" {
 		// Send the request to `--server` host, but set the `Host:` header to the site host.

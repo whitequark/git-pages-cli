@@ -73,6 +73,25 @@ It is not possible to publish a site to a domain for the first time using HTTPS,
 $ git-pages-cli https://example.org --server grebedoc.dev --password xyz --upload-dir ...
 ```
 
+### Forge authorization
+
+Uploading a directory to a site on a wildcard domain (e.g. `https://<owner>.grebedoc.dev/<repo>`) requires the use of an access token with push permissions for the corresponding repository (`https://codeberg.org/<owner>/<repo>.git` in this case).
+
+To create such an access token on Forgejo:
+1. Open _Settings_ > _Applications_ > _Access tokens_.
+1. Expand _Select permissions_, pick _Read and write_ under _repository_.
+1. Set _Token name_ to something informative (e.g. "git-pages publishing").
+1. Click _Generate token_.
+1. The token will appear in a notification (a long string of hexadecimal numbers all on its own).
+
+To deploy using an access token:
+
+```console
+$ git-pages-cli https://username.grebedoc.dev --token <token> --upload-dir ...
+```
+
+**Keep the access token safe and secure!** Anyone who has it will be able to change the data in any of your repositories.
+
 
 Advanced usage
 --------------
