@@ -3,4 +3,4 @@
 
 package main
 
-const versionOverride = "" // set to e.g. "v1.2.3" as appropriate
+var versionOverride = "" // set to e.g. "v1.2.3" as appropriate
