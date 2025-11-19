@@ -39,10 +39,13 @@ Usage
 To prepare a DNS challenge for a given site and password:
 
 ```console
+$ git-pages-cli https://example.org --challenge  # generate a random password
+password: 28a616f4-2fbe-456b-8456-056d1f38e815
+_git-pages-challenge.example.org. 3600 IN TXT "a59ecb58f7256fc5afb6b96892501007b0b65d64f251b1aca749b0fca61d582c"
 $ git-pages-cli https://example.org --password xyz --challenge
-_git-pages-challenge.example.org. 3600 IN TXT "317716dee4379c167e8b5ce9df38eb880e043e5a842d160fe8d5bb408ee0c191"
+_git-pages-challenge.example.org. 3600 IN TXT "6c47172c027b3c79358f9f8c110886baf4826d9bc2a1c7d0f439cc770ed42dc8"
 $ git-pages-cli https://example.org --password xyz --challenge-bare
-317716dee4379c167e8b5ce9df38eb880e043e5a842d160fe8d5bb408ee0c191
+6c47172c027b3c79358f9f8c110886baf4826d9bc2a1c7d0f439cc770ed42dc8
 ```
 
 To publish a site from a git repository available on the internet (`--password` may be omitted if the repository is allowlisted via DNS):
