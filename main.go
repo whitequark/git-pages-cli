@@ -185,7 +185,7 @@ func main() {
 		request.Header.Add("Content-Type", "application/x-tar+zstd")
 
 	case *deleteFlag:
-		request, err = http.NewRequest("DELETE", siteURL.String(), bytes.NewReader([]byte{}))
+		request, err = http.NewRequest("DELETE", siteURL.String(), nil)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "error: %s\n", err)
 			os.Exit(1)
@@ -193,7 +193,7 @@ func main() {
 
 	case *debugManifestFlag:
 		manifestURL := siteURL.ResolveReference(&url.URL{Path: ".git-pages/manifest.json"})
-		request, err = http.NewRequest("GET", manifestURL.String(), bytes.NewReader([]byte{}))
+		request, err = http.NewRequest("GET", manifestURL.String(), nil)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "error: %s\n", err)
 			os.Exit(1)
