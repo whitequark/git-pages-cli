@@ -89,9 +89,8 @@ func displayFS(root fs.FS) error {
 	})
 }
 
-func archiveFS(root fs.FS) (result []byte, err error) {
-	buffer := bytes.Buffer{}
-	zstdWriter, _ := zstd.NewWriter(&buffer)
+func archiveFS(writer io.Writer, root fs.FS) (err error) {
+	zstdWriter, _ := zstd.NewWriter(writer)
 	tarWriter := tar.NewWriter(zstdWriter)
 	err = tarWriter.AddFS(root)
 	if err != nil {
@@ -105,7 +104,6 @@ func archiveFS(root fs.FS) (result []byte, err error) {
 	if err != nil {
 		return
 	}
-	result = buffer.Bytes()
 	return
 }
 
@@ -184,17 +182,23 @@ func main() {
 			}
 		}
 
-		requestBody, err := archiveFS(uploadDirFS.FS())
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "error: %s\n", err)
-			os.Exit(1)
-		}
+		// Stream archive data without ever loading the entire working set into RAM.
+		reader, writer := io.Pipe()
+		go func() {
+			err = archiveFS(writer, uploadDirFS.FS())
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "error: %s\n", err)
+				os.Exit(1)
+			}
+			writer.Close()
+		}()
 
-		request, err = http.NewRequest("PUT", siteURL.String(), bytes.NewReader(requestBody))
+		request, err = http.NewRequest("PUT", siteURL.String(), reader)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "error: %s\n", err)
 			os.Exit(1)
 		}
+		request.ContentLength = -1
 		request.Header.Add("Content-Type", "application/x-tar+zstd")
 
 	case *deleteFlag:
