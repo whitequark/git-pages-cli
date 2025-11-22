@@ -125,4 +125,4 @@ $ git-pages-cli https://example.org --password xyz --debug-manifest
 License
 -------
 
-[0-clause BSD](LICENSE-0BSD.txt)
+[0-clause BSD](LICENSE.txt)
