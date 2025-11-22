@@ -12,9 +12,9 @@ jobs:
       image: docker.io/library/node:24-trixie-slim@sha256:fcdfd7bcd8f641c8c76a8950343c73912d68ba341e8dd1074e663b784d3e76f4
     steps:
       - name: Check out source code
-        uses: https://code.forgejo.org/actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        uses: https://code.forgejo.org/actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
       - name: Set up toolchain
-        uses: https://code.forgejo.org/actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6
+        uses: https://code.forgejo.org/actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c # v6.1.0
         with:
           go-version: '>=1.25.0'
       - name: Install dependencies
@@ -39,9 +39,9 @@ jobs:
       image: docker.io/library/node:24-trixie-slim@sha256:fcdfd7bcd8f641c8c76a8950343c73912d68ba341e8dd1074e663b784d3e76f4
     steps:
       - name: Check out source code
-        uses: https://code.forgejo.org/actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        uses: https://code.forgejo.org/actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
       - name: Set up toolchain
-        uses: https://code.forgejo.org/actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6
+        uses: https://code.forgejo.org/actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c # v6.1.0
         with:
           go-version: '>=1.25.0'
       - name: Install dependencies
@@ -79,7 +79,7 @@ jobs:
           apt-get -y update
           apt-get -y install buildah ca-certificates
       - name: Check out source code
-        uses: https://code.forgejo.org/actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        uses: https://code.forgejo.org/actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
       - name: Build container
         run: |
           printf '[storage]\ndriver="vfs"\nrunroot="/run/containers/storage"\ngraphroot="/var/lib/containers/storage"\n' | tee /etc/containers/storage.conf
