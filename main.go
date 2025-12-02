@@ -109,13 +109,19 @@ func archiveFS(writer io.Writer, root fs.FS) (err error) {
 
 const usageExitCode = 125
 
+func usage() {
+	fmt.Fprintf(os.Stderr,
+		"Usage: %s <site-url> {--challenge|--upload-git url|--upload-dir path|--delete} [options...]\n",
+		os.Args[0],
+	)
+	pflag.PrintDefaults()
+}
+
 func main() {
+	pflag.Usage = usage
 	pflag.Parse()
 	if !singleOperation() || (!*versionFlag && len(pflag.Args()) != 1) {
-		fmt.Fprintf(os.Stderr,
-			"Usage: %s <site-url> [--challenge|--upload-git url|--upload-dir path|--delete]\n",
-			os.Args[0],
-		)
+		pflag.Usage()
 		os.Exit(usageExitCode)
 	}
 
