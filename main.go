@@ -4,6 +4,7 @@ import (
 	"archive/tar"
 	"bytes"
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -11,6 +12,7 @@ import (
 	"net/url"
 	"os"
 	"runtime/debug"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/klauspost/compress/zstd"
@@ -41,6 +43,8 @@ var uploadDirFlag = pflag.String("upload-dir", "", "replace site with contents o
 var deleteFlag = pflag.Bool("delete", false, "delete site")
 var debugManifestFlag = pflag.Bool("debug-manifest", false, "retrieve site manifest as ProtoJSON, for debugging")
 var serverFlag = pflag.String("server", "", "hostname of server to connect to")
+var pathFlag = pflag.String("path", "", "partially update site at specified path")
+var raceFreeFlag = pflag.Bool("race-free", false, "require partial updates to be atomic")
 var verboseFlag = pflag.Bool("verbose", false, "display more information for debugging")
 var versionFlag = pflag.Bool("version", false, "display version information")
 
@@ -70,41 +74,96 @@ func singleOperation() bool {
 	return operations == 1
 }
 
-func displayFS(root fs.FS) error {
+func displayFS(root fs.FS, prefix string) error {
 	return fs.WalkDir(root, ".", func(name string, entry fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 		switch {
-		case entry.Type() == 0:
-			fmt.Fprintln(os.Stderr, "file", name)
-		case entry.Type() == fs.ModeDir:
-			fmt.Fprintln(os.Stderr, "dir", name)
+		case entry.Type().IsDir():
+			fmt.Fprintf(os.Stderr, "dir %s%s\n", prefix, name)
+		case entry.Type().IsRegular():
+			fmt.Fprintf(os.Stderr, "file %s%s\n", prefix, name)
 		case entry.Type() == fs.ModeSymlink:
-			fmt.Fprintln(os.Stderr, "symlink", name)
+			fmt.Fprintf(os.Stderr, "symlink %s%s\n", prefix, name)
 		default:
-			fmt.Fprintln(os.Stderr, "other", name)
+			fmt.Fprintf(os.Stderr, "other %s%s\n", prefix, name)
 		}
 		return nil
 	})
 }
 
-func archiveFS(writer io.Writer, root fs.FS) (err error) {
+func archiveFS(writer io.Writer, root fs.FS, prefix string) (err error) {
 	zstdWriter, _ := zstd.NewWriter(writer)
 	tarWriter := tar.NewWriter(zstdWriter)
-	err = tarWriter.AddFS(root)
-	if err != nil {
+	if err = fs.WalkDir(root, ".", func(name string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		fileInfo, err := entry.Info()
+		if err != nil {
+			return err
+		}
+		var tarName string
+		if prefix == "" && name == "." {
+			return nil
+		} else if prefix == "" {
+			tarName = name
+		} else if name == "." {
+			tarName = prefix
+		} else {
+			tarName = fmt.Sprintf("%s/%s", prefix, name)
+		}
+		var file io.ReadCloser
+		var linkTarget string
+		switch {
+		case entry.Type().IsDir():
+			name += "/"
+		case entry.Type().IsRegular():
+			if file, err = root.Open(name); err != nil {
+				return err
+			}
+			defer file.Close()
+		case entry.Type() == fs.ModeSymlink:
+			if linkTarget, err = fs.ReadLink(root, name); err != nil {
+				return err
+			}
+		default:
+			return errors.New("tar: cannot add non-regular file")
+		}
+		header, err := tar.FileInfoHeader(fileInfo, linkTarget)
+		if err != nil {
+			return err
+		}
+		header.Name = tarName
+		if err = tarWriter.WriteHeader(header); err != nil {
+			return err
+		}
+		if file != nil {
+			_, err = io.Copy(tarWriter, file)
+		}
+		return err
+	}); err != nil {
 		return
 	}
-	err = tarWriter.Close()
-	if err != nil {
+	if err = tarWriter.Close(); err != nil {
 		return
 	}
-	err = zstdWriter.Close()
-	if err != nil {
+	if err = zstdWriter.Close(); err != nil {
 		return
 	}
 	return
+}
+
+func makeWhiteout(path string) (reader io.Reader) {
+	buffer := &bytes.Buffer{}
+	tarWriter := tar.NewWriter(buffer)
+	tarWriter.WriteHeader(&tar.Header{
+		Typeflag: tar.TypeChar,
+		Name:     path,
+	})
+	tarWriter.Flush()
+	return buffer
 }
 
 const usageExitCode = 125
@@ -133,6 +192,16 @@ func main() {
 	if *passwordFlag != "" && *tokenFlag != "" {
 		fmt.Fprintf(os.Stderr, "--password and --token are mutually exclusive")
 		os.Exit(usageExitCode)
+	}
+
+	var pathPrefix string
+	if *pathFlag != "" {
+		if *uploadDirFlag == "" && !*deleteFlag {
+			fmt.Fprintf(os.Stderr, "--path requires --upload-dir or --delete")
+			os.Exit(usageExitCode)
+		} else {
+			pathPrefix = strings.Trim(*pathFlag, "/")
+		}
 	}
 
 	var err error
@@ -181,7 +250,7 @@ func main() {
 		}
 
 		if *verboseFlag {
-			err := displayFS(uploadDirFS.FS())
+			err := displayFS(uploadDirFS.FS(), pathPrefix)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "error: %s\n", err)
 				os.Exit(1)
@@ -191,7 +260,7 @@ func main() {
 		// Stream archive data without ever loading the entire working set into RAM.
 		reader, writer := io.Pipe()
 		go func() {
-			err = archiveFS(writer, uploadDirFS.FS())
+			err = archiveFS(writer, uploadDirFS.FS(), pathPrefix)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "error: %s\n", err)
 				os.Exit(1)
@@ -199,7 +268,11 @@ func main() {
 			writer.Close()
 		}()
 
-		request, err = http.NewRequest("PUT", siteURL.String(), reader)
+		if *pathFlag == "" {
+			request, err = http.NewRequest("PUT", siteURL.String(), reader)
+		} else {
+			request, err = http.NewRequest("PATCH", siteURL.String(), reader)
+		}
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "error: %s\n", err)
 			os.Exit(1)
@@ -208,10 +281,19 @@ func main() {
 		request.Header.Add("Content-Type", "application/x-tar+zstd")
 
 	case *deleteFlag:
-		request, err = http.NewRequest("DELETE", siteURL.String(), nil)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "error: %s\n", err)
-			os.Exit(1)
+		if *pathFlag == "" {
+			request, err = http.NewRequest("DELETE", siteURL.String(), nil)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "error: %s\n", err)
+				os.Exit(1)
+			}
+		} else {
+			request, err = http.NewRequest("PATCH", siteURL.String(), makeWhiteout(pathPrefix))
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "error: %s\n", err)
+				os.Exit(1)
+			}
+			request.Header.Add("Content-Type", "application/x-tar")
 		}
 
 	case *debugManifestFlag:
@@ -226,6 +308,13 @@ func main() {
 		panic("no operation chosen")
 	}
 	request.Header.Add("User-Agent", versionInfo())
+	if request.Method == "PATCH" {
+		if *raceFreeFlag {
+			request.Header.Add("Race-Free", "yes")
+		} else {
+			request.Header.Add("Race-Free", "no")
+		}
+	}
 	switch {
 	case *passwordFlag != "":
 		request.Header.Add("Authorization", fmt.Sprintf("Pages %s", *passwordFlag))
