@@ -3,10 +3,11 @@ git-pages-cli
 
 _git-pages-cli_ is a command-line application for publishing sites to [git-pages].
 
-If you want to publish a site from a Forgejo Actions workflow, use [git-pages/action] instead.
+> [!TIP]
+> If you want to publish a site from a CI workflow, use the [Forgejo Action][git-pages-action] instead.
 
 [git-pages]: https://codeberg.org/git-pages/git-pages
-[git-pages/action]: https://codeberg.org/git-pages/action
+[git-pages-action]: https://codeberg.org/git-pages/action
 
 
 Installation
