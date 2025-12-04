@@ -45,8 +45,8 @@ var debugManifestFlag = pflag.Bool("debug-manifest", false, "retrieve site manif
 var serverFlag = pflag.String("server", "", "hostname of server to connect to")
 var pathFlag = pflag.String("path", "", "partially update site at specified path")
 var atomicFlag = pflag.Bool("atomic", false, "require partial updates to be atomic")
-var verboseFlag = pflag.Bool("verbose", false, "display more information for debugging")
-var versionFlag = pflag.Bool("version", false, "display version information")
+var verboseFlag = pflag.BoolP("verbose", "v", false, "display more information for debugging")
+var versionFlag = pflag.BoolP("version", "V", false, "display version information")
 
 func singleOperation() bool {
 	operations := 0
