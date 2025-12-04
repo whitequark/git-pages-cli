@@ -44,6 +44,7 @@ var deleteFlag = pflag.Bool("delete", false, "delete site")
 var debugManifestFlag = pflag.Bool("debug-manifest", false, "retrieve site manifest as ProtoJSON, for debugging")
 var serverFlag = pflag.String("server", "", "hostname of server to connect to")
 var pathFlag = pflag.String("path", "", "partially update site at specified path")
+var parentsFlag = pflag.Bool("parents", false, "create parent directories of --path")
 var atomicFlag = pflag.Bool("atomic", false, "require partial updates to be atomic")
 var verboseFlag = pflag.BoolP("verbose", "v", false, "display more information for debugging")
 var versionFlag = pflag.BoolP("version", "V", false, "display version information")
@@ -277,6 +278,11 @@ func main() {
 		}
 		request.ContentLength = -1
 		request.Header.Add("Content-Type", "application/x-tar+zstd")
+		if *parentsFlag {
+			request.Header.Add("Create-Parents", "yes")
+		} else {
+			request.Header.Add("Create-Parents", "no")
+		}
 
 	case *deleteFlag:
 		if *pathFlag == "" {
