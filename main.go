@@ -44,7 +44,7 @@ var deleteFlag = pflag.Bool("delete", false, "delete site")
 var debugManifestFlag = pflag.Bool("debug-manifest", false, "retrieve site manifest as ProtoJSON, for debugging")
 var serverFlag = pflag.String("server", "", "hostname of server to connect to")
 var pathFlag = pflag.String("path", "", "partially update site at specified path")
-var raceFreeFlag = pflag.Bool("race-free", false, "require partial updates to be atomic")
+var atomicFlag = pflag.Bool("atomic", false, "require partial updates to be atomic")
 var verboseFlag = pflag.Bool("verbose", false, "display more information for debugging")
 var versionFlag = pflag.Bool("version", false, "display version information")
 
@@ -307,10 +307,12 @@ func main() {
 	}
 	request.Header.Add("User-Agent", versionInfo())
 	if request.Method == "PATCH" {
-		if *raceFreeFlag {
-			request.Header.Add("Race-Free", "yes")
+		if *atomicFlag {
+			request.Header.Add("Atomic", "yes")
+			request.Header.Add("Race-Free", "yes") // deprecated name, to be removed soon
 		} else {
-			request.Header.Add("Race-Free", "no")
+			request.Header.Add("Atomic", "no")
+			request.Header.Add("Race-Free", "no") // deprecated name, to be removed soon
 		}
 	}
 	switch {
