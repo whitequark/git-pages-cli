@@ -81,13 +81,13 @@ func displayFS(root fs.FS, prefix string) error {
 		}
 		switch {
 		case entry.Type().IsDir():
-			fmt.Fprintf(os.Stderr, "dir %s%s\n", prefix, name)
+			fmt.Fprintf(os.Stderr, "dir     %s%s\n", prefix, name)
 		case entry.Type().IsRegular():
-			fmt.Fprintf(os.Stderr, "file %s%s\n", prefix, name)
+			fmt.Fprintf(os.Stderr, "file    %s%s\n", prefix, name)
 		case entry.Type() == fs.ModeSymlink:
 			fmt.Fprintf(os.Stderr, "symlink %s%s\n", prefix, name)
 		default:
-			fmt.Fprintf(os.Stderr, "other %s%s\n", prefix, name)
+			fmt.Fprintf(os.Stderr, "other   %s%s\n", prefix, name)
 		}
 		return nil
 	})
@@ -107,12 +107,10 @@ func archiveFS(writer io.Writer, root fs.FS, prefix string) (err error) {
 		var tarName string
 		if prefix == "" && name == "." {
 			return nil
-		} else if prefix == "" {
-			tarName = name
 		} else if name == "." {
 			tarName = prefix
 		} else {
-			tarName = fmt.Sprintf("%s/%s", prefix, name)
+			tarName = prefix + name
 		}
 		var file io.ReadCloser
 		var linkTarget string
@@ -200,7 +198,7 @@ func main() {
 			fmt.Fprintf(os.Stderr, "--path requires --upload-dir or --delete")
 			os.Exit(usageExitCode)
 		} else {
-			pathPrefix = strings.Trim(*pathFlag, "/")
+			pathPrefix = strings.Trim(*pathFlag, "/") + "/"
 		}
 	}
 
