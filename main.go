@@ -2,8 +2,11 @@ package main
 
 import (
 	"archive/tar"
+	"bufio"
 	"bytes"
+	"crypto"
 	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -12,6 +15,7 @@ import (
 	"net/url"
 	"os"
 	"runtime/debug"
+	"strconv"
 	"strings"
 
 	"github.com/google/uuid"
@@ -39,13 +43,14 @@ var tokenFlag = pflag.String("token", "", "token for forge authorization")
 var challengeFlag = pflag.Bool("challenge", false, "compute DNS challenge entry from password (output zone file record)")
 var challengeBareFlag = pflag.Bool("challenge-bare", false, "compute DNS challenge entry from password (output bare TXT value)")
 var uploadGitFlag = pflag.String("upload-git", "", "replace site with contents of specified git repository")
-var uploadDirFlag = pflag.String("upload-dir", "", "replace whole site or a subdirectory with contents of specified directory")
-var deleteFlag = pflag.Bool("delete", false, "delete whole site or a subdirectory")
+var uploadDirFlag = pflag.String("upload-dir", "", "replace whole site or a path with contents of specified directory")
+var deleteFlag = pflag.Bool("delete", false, "delete whole site or a path")
 var debugManifestFlag = pflag.Bool("debug-manifest", false, "retrieve site manifest as ProtoJSON, for debugging")
 var serverFlag = pflag.String("server", "", "hostname of server to connect to")
 var pathFlag = pflag.String("path", "", "partially update site at specified path")
 var parentsFlag = pflag.Bool("parents", false, "create parent directories of --path")
 var atomicFlag = pflag.Bool("atomic", false, "require partial updates to be atomic")
+var incrementalFlag = pflag.Bool("incremental", false, "only upload changed files")
 var verboseFlag = pflag.BoolP("verbose", "v", false, "display more information for debugging")
 var versionFlag = pflag.BoolP("version", "V", false, "display version information")
 
@@ -75,6 +80,15 @@ func singleOperation() bool {
 	return operations == 1
 }
 
+func gitBlobSHA256(data []byte) string {
+	h := crypto.SHA256.New()
+	h.Write([]byte("blob "))
+	h.Write([]byte(strconv.FormatInt(int64(len(data)), 10)))
+	h.Write([]byte{0})
+	h.Write(data)
+	return hex.EncodeToString(h.Sum(nil))
+}
+
 func displayFS(root fs.FS, prefix string) error {
 	return fs.WalkDir(root, ".", func(name string, entry fs.DirEntry, err error) error {
 		if err != nil {
@@ -94,52 +108,61 @@ func displayFS(root fs.FS, prefix string) error {
 	})
 }
 
-func archiveFS(writer io.Writer, root fs.FS, prefix string) (err error) {
+// It doesn't make sense to use incremental updates for very small files since the cost of
+// repeating a request to fill in a missing blob is likely to be higher than any savings gained.
+const incrementalSizeThreshold = 256
+
+func archiveFS(writer io.Writer, root fs.FS, prefix string, needBlobs []string) (err error) {
+	requestedSet := make(map[string]struct{})
+	for _, hash := range needBlobs {
+		requestedSet[hash] = struct{}{}
+	}
 	zstdWriter, _ := zstd.NewWriter(writer)
 	tarWriter := tar.NewWriter(zstdWriter)
 	if err = fs.WalkDir(root, ".", func(name string, entry fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
-		fileInfo, err := entry.Info()
-		if err != nil {
-			return err
-		}
-		var tarName string
+		header := &tar.Header{}
+		data := []byte{}
 		if prefix == "" && name == "." {
 			return nil
 		} else if name == "." {
-			tarName = prefix
+			header.Name = prefix
 		} else {
-			tarName = prefix + name
+			header.Name = prefix + name
 		}
-		var file io.ReadCloser
-		var linkTarget string
 		switch {
 		case entry.Type().IsDir():
-			name += "/"
+			header.Typeflag = tar.TypeDir
+			header.Name += "/"
 		case entry.Type().IsRegular():
-			if file, err = root.Open(name); err != nil {
+			header.Typeflag = tar.TypeReg
+			if data, err = fs.ReadFile(root, name); err != nil {
 				return err
 			}
-			defer file.Close()
+			if *incrementalFlag && len(data) > incrementalSizeThreshold {
+				hash := gitBlobSHA256(data)
+				if _, requested := requestedSet[hash]; !requested {
+					header.Typeflag = tar.TypeSymlink
+					header.Linkname = "/git/blobs/" + hash
+					data = nil
+				}
+			}
 		case entry.Type() == fs.ModeSymlink:
-			if linkTarget, err = fs.ReadLink(root, name); err != nil {
+			header.Typeflag = tar.TypeSymlink
+			if header.Linkname, err = fs.ReadLink(root, name); err != nil {
 				return err
 			}
 		default:
 			return errors.New("tar: cannot add non-regular file")
 		}
-		header, err := tar.FileInfoHeader(fileInfo, linkTarget)
-		if err != nil {
-			return err
-		}
-		header.Name = tarName
+		header.Size = int64(len(data))
 		if err = tarWriter.WriteHeader(header); err != nil {
 			return err
 		}
-		if file != nil {
-			_, err = io.Copy(tarWriter, file)
+		if _, err = tarWriter.Write(data); err != nil {
+			return err
 		}
 		return err
 	}); err != nil {
@@ -152,6 +175,20 @@ func archiveFS(writer io.Writer, root fs.FS, prefix string) (err error) {
 		return
 	}
 	return
+}
+
+// Stream archive data without ever loading the entire working set into RAM.
+func streamArchiveFS(root fs.FS, prefix string, needBlobs []string) io.ReadCloser {
+	reader, writer := io.Pipe()
+	go func() {
+		err := archiveFS(writer, root, prefix, needBlobs)
+		if err != nil {
+			writer.CloseWithError(err)
+		} else {
+			writer.Close()
+		}
+	}()
+	return reader
 }
 
 func makeWhiteout(path string) (reader io.Reader) {
@@ -203,6 +240,11 @@ func main() {
 		}
 	}
 
+	if *incrementalFlag && *uploadDirFlag == "" {
+		fmt.Fprintf(os.Stderr, "--incremental requires --upload-dir")
+		os.Exit(usageExitCode)
+	}
+
 	var err error
 	siteURL, err := url.Parse(pflag.Args()[0])
 	if err != nil {
@@ -211,6 +253,7 @@ func main() {
 	}
 
 	var request *http.Request
+	var uploadDir *os.Root
 	switch {
 	case *challengeFlag || *challengeBareFlag:
 		if *passwordFlag == "" {
@@ -242,42 +285,33 @@ func main() {
 		request.Header.Add("Content-Type", "application/x-www-form-urlencoded")
 
 	case *uploadDirFlag != "":
-		uploadDirFS, err := os.OpenRoot(*uploadDirFlag)
+		uploadDir, err = os.OpenRoot(*uploadDirFlag)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "error: invalid directory: %s\n", err)
 			os.Exit(1)
 		}
 
 		if *verboseFlag {
-			err := displayFS(uploadDirFS.FS(), pathPrefix)
+			err := displayFS(uploadDir.FS(), pathPrefix)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "error: %s\n", err)
 				os.Exit(1)
 			}
 		}
 
-		// Stream archive data without ever loading the entire working set into RAM.
-		reader, writer := io.Pipe()
-		go func() {
-			err = archiveFS(writer, uploadDirFS.FS(), pathPrefix)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "error: %s\n", err)
-				os.Exit(1)
-			}
-			writer.Close()
-		}()
-
 		if *pathFlag == "" {
-			request, err = http.NewRequest("PUT", siteURL.String(), reader)
+			request, err = http.NewRequest("PUT", siteURL.String(), nil)
 		} else {
-			request, err = http.NewRequest("PATCH", siteURL.String(), reader)
+			request, err = http.NewRequest("PATCH", siteURL.String(), nil)
 		}
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "error: %s\n", err)
 			os.Exit(1)
 		}
+		request.Body = streamArchiveFS(uploadDir.FS(), pathPrefix, []string{})
 		request.ContentLength = -1
 		request.Header.Add("Content-Type", "application/x-tar+zstd")
+		request.Header.Add("Accept", "application/vnd.git-pages.unresolved;q=1.0, text/plain;q=0.9")
 		if *parentsFlag {
 			request.Header.Add("Create-Parents", "yes")
 		} else {
@@ -338,30 +372,49 @@ func main() {
 		request.Header.Set("Host", siteURL.Host)
 	}
 
-	response, err := http.DefaultClient.Do(request)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "error: %s\n", err)
-		os.Exit(1)
-	}
-	if *verboseFlag {
-		fmt.Fprintf(os.Stderr, "server: %s\n", response.Header.Get("Server"))
-	}
-	if *debugManifestFlag {
-		if response.StatusCode == 200 {
-			io.Copy(os.Stdout, response.Body)
-			fmt.Fprintf(os.Stdout, "\n")
-		} else {
-			io.Copy(os.Stderr, response.Body)
+	displayServer := *verboseFlag
+	for {
+		response, err := http.DefaultClient.Do(request)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "error: %s\n", err)
 			os.Exit(1)
 		}
-	} else { // an update operation
-		if response.StatusCode == 200 {
-			fmt.Fprintf(os.Stdout, "result: %s\n", response.Header.Get("Update-Result"))
-			io.Copy(os.Stdout, response.Body)
-		} else {
-			fmt.Fprintf(os.Stderr, "result: error\n")
-			io.Copy(os.Stderr, response.Body)
-			os.Exit(1)
+		if displayServer {
+			fmt.Fprintf(os.Stderr, "server: %s\n", response.Header.Get("Server"))
+			displayServer = false
 		}
+		if *debugManifestFlag {
+			if response.StatusCode == http.StatusOK {
+				io.Copy(os.Stdout, response.Body)
+				fmt.Fprintf(os.Stdout, "\n")
+			} else {
+				io.Copy(os.Stderr, response.Body)
+				os.Exit(1)
+			}
+		} else { // an update operation
+			if *verboseFlag {
+				fmt.Fprintf(os.Stderr, "response: %d %s\n",
+					response.StatusCode, response.Header.Get("Content-Type"))
+			}
+			if response.StatusCode == http.StatusUnprocessableEntity &&
+				response.Header.Get("Content-Type") == "application/vnd.git-pages.unresolved" {
+				needBlobs := []string{}
+				scanner := bufio.NewScanner(response.Body)
+				for scanner.Scan() {
+					needBlobs = append(needBlobs, scanner.Text())
+				}
+				response.Body.Close()
+				request.Body = streamArchiveFS(uploadDir.FS(), pathPrefix, needBlobs)
+				continue // resubmit
+			} else if response.StatusCode == http.StatusOK {
+				fmt.Fprintf(os.Stdout, "result: %s\n", response.Header.Get("Update-Result"))
+				io.Copy(os.Stdout, response.Body)
+			} else {
+				fmt.Fprintf(os.Stderr, "result: error\n")
+				io.Copy(os.Stderr, response.Body)
+				os.Exit(1)
+			}
+		}
+		break
 	}
 }
