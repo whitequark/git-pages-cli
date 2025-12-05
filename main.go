@@ -404,6 +404,9 @@ func main() {
 					needBlobs = append(needBlobs, scanner.Text())
 				}
 				response.Body.Close()
+				if *verboseFlag {
+					fmt.Fprintf(os.Stderr, "incremental: need %d blobs\n", len(needBlobs))
+				}
 				request.Body = streamArchiveFS(uploadDir.FS(), pathPrefix, needBlobs)
 				continue // resubmit
 			} else if response.StatusCode == http.StatusOK {
