@@ -330,7 +330,7 @@ func main() {
 		}
 
 	case *debugManifestFlag:
-		manifestURL := siteURL.ResolveReference(&url.URL{Path: ".git-pages/manifest.json"})
+		manifestURL := siteURL.JoinPath(".git-pages/manifest.json")
 		request, err = http.NewRequest("GET", manifestURL.String(), nil)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "error: %s\n", err)
