@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"regexp"
 	"runtime/debug"
 	"strconv"
 	"strings"
@@ -372,6 +373,16 @@ func main() {
 		response, err := http.DefaultClient.Do(request)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "error: %s\n", err)
+			os.Exit(1)
+		}
+		serverIdent := strings.Join(response.Header.Values("Server"), ", ")
+		//lint:ignore SA6000 This isn't a hot loop.
+		if matched, err := regexp.MatchString(`\bgit-pages\b`, serverIdent); err != nil {
+			panic(err)
+		} else if !matched {
+			fmt.Fprintf(os.Stderr,
+				"error: the tool only works with git-pages, but the URL points to a %q server\n",
+				serverIdent)
 			os.Exit(1)
 		}
 		if displayServer {
