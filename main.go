@@ -368,10 +368,37 @@ func main() {
 		request.Header.Set("Host", siteURL.Host)
 	}
 
+	// HTTP-to-HTTPS redirects are often implemented with 301 or 302 response codes which instruct
+	// the Go HTTP client to disregard the original request method and use GET instead. To prevent
+	// confusion, detect such redirects and preserve the original request method.
+	http.DefaultClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		last := via[len(via)-1]
+		newURL := req.URL.JoinPath()
+		lastURL := last.URL.JoinPath()
+		if lastURL.Scheme == "http" && newURL.Scheme == "https" {
+			lastURL.Scheme = newURL.Scheme
+			if lastURL.String() == newURL.String() {
+				req.Method = last.Method
+				return nil
+			}
+		}
+		if req.Method != last.Method {
+			return fmt.Errorf("unexpected redirect")
+		}
+		return nil
+	}
+
 	displayServer := *verboseFlag
 	for {
 		response, err := http.DefaultClient.Do(request)
 		if err != nil {
+			if response.StatusCode == 301 || response.StatusCode == 302 {
+				if innerErr := errors.Unwrap(err); innerErr != nil {
+					// If the error is due to a redirect, that means it wasn't followed, but the
+					// original url.Error confusingly reports the new URL anyway.
+					err = innerErr
+				}
+			}
 			fmt.Fprintf(os.Stderr, "error: %s\n", err)
 			os.Exit(1)
 		}
