@@ -295,16 +295,16 @@ func main() {
 			}
 		}
 
+		requestBody := streamArchiveFS(uploadDir.FS(), pathPrefix, []string{})
 		if *pathFlag == "" {
-			request, err = http.NewRequest("PUT", siteURL.String(), nil)
+			request, err = http.NewRequest("PUT", siteURL.String(), requestBody)
 		} else {
-			request, err = http.NewRequest("PATCH", siteURL.String(), nil)
+			request, err = http.NewRequest("PATCH", siteURL.String(), requestBody)
 		}
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "error: %s\n", err)
 			os.Exit(1)
 		}
-		request.Body = streamArchiveFS(uploadDir.FS(), pathPrefix, []string{})
 		request.ContentLength = -1
 		request.Header.Add("Content-Type", "application/x-tar+zstd")
 		request.Header.Add("Accept", "application/vnd.git-pages.unresolved;q=1.0, text/plain;q=0.9")
