@@ -40,6 +40,7 @@ func versionInfo() string {
 }
 
 var passwordFlag = pflag.String("password", "", "password for DNS challenge authorization")
+var passwordFileFlag = pflag.String("password-file", "", "file with password for DNS challenge authorization")
 var tokenFlag = pflag.String("token", "", "token for forge authorization")
 var challengeFlag = pflag.Bool("challenge", false, "compute DNS challenge entry from password (output zone file record)")
 var challengeBareFlag = pflag.Bool("challenge-bare", false, "compute DNS challenge entry from password (output bare TXT value)")
@@ -226,9 +227,24 @@ func main() {
 		os.Exit(0)
 	}
 
+	if *passwordFlag != "" && *passwordFileFlag != "" {
+		fmt.Fprintf(os.Stderr, "--password and --password-file are mutually exclusive")
+		os.Exit(usageExitCode)
+	}
+
 	if *passwordFlag != "" && *tokenFlag != "" {
 		fmt.Fprintf(os.Stderr, "--password and --token are mutually exclusive")
 		os.Exit(usageExitCode)
+	}
+
+	if *passwordFileFlag != "" {
+		contents, err := os.ReadFile(*passwordFileFlag)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "error: invalid password file: %s\n", err)
+			os.Exit(1)
+		}
+		// Trim all trailing newlines; there's no legitimate reason to have one in a password.
+		*passwordFlag = strings.TrimRight(string(contents), "\n")
 	}
 
 	var pathPrefix string
@@ -351,11 +367,19 @@ func main() {
 			request.Header.Add("Race-Free", "no") // deprecated name, to be removed soon
 		}
 	}
+	makeAuthorization := func(headerName string, kind string, value string) {
+		if strings.ContainsAny(value, "\r\n") {
+			fmt.Fprintf(os.Stderr, "error: invalid characters in %s header value: %q\n",
+				headerName, value)
+			os.Exit(1)
+		}
+		request.Header.Add(headerName, fmt.Sprintf("%s %s", kind, value))
+	}
 	switch {
 	case *passwordFlag != "":
-		request.Header.Add("Authorization", fmt.Sprintf("Pages %s", *passwordFlag))
+		makeAuthorization("Authorization", "Pages", *passwordFlag)
 	case *tokenFlag != "":
-		request.Header.Add("Forge-Authorization", fmt.Sprintf("token %s", *tokenFlag))
+		makeAuthorization("Forge-Authorization", "token", *tokenFlag)
 	}
 	if *serverFlag != "" {
 		// Send the request to `--server` host, but set the `Host:` header to the site host.
