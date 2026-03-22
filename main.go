@@ -416,7 +416,7 @@ func main() {
 	for {
 		response, err := http.DefaultClient.Do(request)
 		if err != nil {
-			if response.StatusCode == 301 || response.StatusCode == 302 {
+			if response != nil && (response.StatusCode == 301 || response.StatusCode == 302) {
 				if innerErr := errors.Unwrap(err); innerErr != nil {
 					// If the error is due to a redirect, that means it wasn't followed, but the
 					// original url.Error confusingly reports the new URL anyway.
