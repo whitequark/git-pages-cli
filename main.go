@@ -52,7 +52,7 @@ var serverFlag = pflag.String("server", "", "hostname of server to connect to")
 var pathFlag = pflag.String("path", "", "partially update site at specified path")
 var parentsFlag = pflag.Bool("parents", false, "create parent directories of --path")
 var atomicFlag = pflag.Bool("atomic", false, "require partial updates to be atomic")
-var incrementalFlag = pflag.Bool("incremental", false, "make --upload-dir only upload changed files")
+var incrementalFlag = pflag.Bool("incremental", true, "make --upload-dir only upload changed files")
 var verboseFlag = pflag.BoolP("verbose", "v", false, "display more information for debugging")
 var versionFlag = pflag.BoolP("version", "V", false, "display version information")
 
