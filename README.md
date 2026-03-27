@@ -97,6 +97,10 @@ $ git-pages-cli https://username.grebedoc.dev --token <token> --upload-dir ...
 
 **Keep the access token safe and secure!** Anyone who has it will be able to change the data in any of your repositories.
 
+### Specifying secrets
+
+While secrets may be specified using the command-line arguments `--password` and `--token`, this is not always desirable. The alternatives to the `--password` flag are the `--password-file` flag and the `GIT_PAGES_PASSWORD` environment variable, and the alternative to the `--token` flag is the `GIT_PAGES_TOKEN` environment variable. When both the environment variable and the command-line argument are provided, the command-line argument takes priority.
+
 
 Advanced usage
 --------------

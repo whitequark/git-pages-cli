@@ -227,13 +227,21 @@ func main() {
 		os.Exit(0)
 	}
 
-	if *passwordFlag != "" && *passwordFileFlag != "" {
-		fmt.Fprintf(os.Stderr, "--password and --password-file are mutually exclusive")
+	if *passwordFlag == "" {
+		*passwordFlag = os.Getenv("GIT_PAGES_PASSWORD")
+	}
+
+	if *tokenFlag == "" {
+		*tokenFlag = os.Getenv("GIT_PAGES_TOKEN")
+	}
+
+	if *passwordFileFlag != "" && *passwordFlag != "" {
+		fmt.Fprintf(os.Stderr, "error: --password-file and --password/$GIT_PAGES_PASSWORD are mutually exclusive\n")
 		os.Exit(usageExitCode)
 	}
 
 	if *passwordFlag != "" && *tokenFlag != "" {
-		fmt.Fprintf(os.Stderr, "--password and --token are mutually exclusive")
+		fmt.Fprintf(os.Stderr, "error: --password-file/--password/$GIT_PAGES_PASSWORD and --token/$GIT_PAGES_TOKEN are mutually exclusive\n")
 		os.Exit(usageExitCode)
 	}
 
@@ -250,7 +258,7 @@ func main() {
 	var pathPrefix string
 	if *pathFlag != "" {
 		if *uploadDirFlag == "" && !*deleteFlag {
-			fmt.Fprintf(os.Stderr, "--path requires --upload-dir or --delete")
+			fmt.Fprintf(os.Stderr, "error: --path requires --upload-dir or --delete\n")
 			os.Exit(usageExitCode)
 		} else {
 			pathPrefix = strings.Trim(*pathFlag, "/") + "/"
