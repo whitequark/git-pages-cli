@@ -434,7 +434,12 @@ func main() {
 			fmt.Fprintf(os.Stderr, "error: %s\n", err)
 			os.Exit(1)
 		}
-		serverIdent := strings.Join(response.Header.Values("Server"), ", ")
+		serverValues := response.Header.Values("Server")
+		// Cloudflare &co love to insert themselves into the `Server:` header without a way to
+		// override it. They shouldn't, but this is a losing battle, so provide a workaround for
+		// people stuck behind it.
+		serverValues = append(serverValues, response.Header.Values("X-Server")...)
+		serverIdent := strings.Join(serverValues, ", ")
 		//lint:ignore SA6000 This isn't a hot loop.
 		if matched, err := regexp.MatchString(`\bgit-pages\b`, serverIdent); err != nil {
 			panic(err)
@@ -445,7 +450,7 @@ func main() {
 			os.Exit(1)
 		}
 		if displayServer {
-			fmt.Fprintf(os.Stderr, "server: %s\n", response.Header.Get("Server"))
+			fmt.Fprintf(os.Stderr, "server: %s\n", serverIdent)
 			displayServer = false
 		}
 		if *debugManifestFlag {
