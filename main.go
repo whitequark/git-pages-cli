@@ -324,6 +324,11 @@ func main() {
 			request, err = http.NewRequest("PUT", siteURL.String(), requestBody)
 		} else {
 			request, err = http.NewRequest("PATCH", siteURL.String(), requestBody)
+			if *parentsFlag {
+				request.Header.Add("Create-Parents", "yes")
+			} else {
+				request.Header.Add("Create-Parents", "no")
+			}
 		}
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "error: %s\n", err)
@@ -332,11 +337,6 @@ func main() {
 		request.ContentLength = -1
 		request.Header.Add("Content-Type", "application/x-tar+zstd")
 		request.Header.Add("Accept", "application/vnd.git-pages.unresolved;q=1.0, text/plain;q=0.9")
-		if *parentsFlag {
-			request.Header.Add("Create-Parents", "yes")
-		} else {
-			request.Header.Add("Create-Parents", "no")
-		}
 
 	case *deleteFlag:
 		if *pathFlag == "" {
