@@ -319,11 +319,10 @@ func main() {
 			}
 		}
 
-		requestBody := streamArchiveFS(uploadDir.FS(), pathPrefix, []string{})
 		if *pathFlag == "" {
-			request, err = http.NewRequest("PUT", siteURL.String(), requestBody)
+			request, err = http.NewRequest("PUT", siteURL.String(), nil)
 		} else {
-			request, err = http.NewRequest("PATCH", siteURL.String(), requestBody)
+			request, err = http.NewRequest("PATCH", siteURL.String(), nil)
 			if *parentsFlag {
 				request.Header.Add("Create-Parents", "yes")
 			} else {
@@ -334,6 +333,10 @@ func main() {
 			fmt.Fprintf(os.Stderr, "error: %s\n", err)
 			os.Exit(1)
 		}
+		request.GetBody = func() (io.ReadCloser, error) {
+			return streamArchiveFS(uploadDir.FS(), pathPrefix, []string{}), nil
+		}
+		request.Body, _ = request.GetBody()
 		request.ContentLength = -1
 		request.Header.Add("Content-Type", "application/x-tar+zstd")
 		request.Header.Add("Accept", "application/vnd.git-pages.unresolved;q=1.0, text/plain;q=0.9")
@@ -402,7 +405,7 @@ func main() {
 
 	// HTTP-to-HTTPS redirects are often implemented with 301 or 302 response codes which instruct
 	// the Go HTTP client to disregard the original request method and use GET instead. To prevent
-	// confusion, detect such redirects and preserve the original request method.
+	// confusion, detect such redirects and preserve the original request method and body.
 	http.DefaultClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
 		last := via[len(via)-1]
 		newURL := req.URL.JoinPath()
@@ -411,6 +414,8 @@ func main() {
 			lastURL.Scheme = newURL.Scheme
 			if lastURL.String() == newURL.String() {
 				req.Method = last.Method
+				req.Body, _ = last.GetBody()
+				req.Header.Set("Content-Type", last.Header.Get("Content-Type"))
 				return nil
 			}
 		}
@@ -477,7 +482,10 @@ func main() {
 				if *verboseFlag {
 					fmt.Fprintf(os.Stderr, "incremental: need %d blobs\n", len(needBlobs))
 				}
-				request.Body = streamArchiveFS(uploadDir.FS(), pathPrefix, needBlobs)
+				request.GetBody = func() (io.ReadCloser, error) {
+					return streamArchiveFS(uploadDir.FS(), pathPrefix, needBlobs), nil
+				}
+				request.Body, _ = request.GetBody()
 				continue // resubmit
 			} else if response.StatusCode == http.StatusOK {
 				fmt.Fprintf(os.Stdout, "result: %s\n", response.Header.Get("Update-Result"))
