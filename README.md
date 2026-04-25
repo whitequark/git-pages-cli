@@ -1,6 +1,9 @@
 git-pages-cli
 =============
 
+<a href="ircs://irc.libera.chat/#git-pages"><img alt="Discuss on IRC at #git-pages on libera.chat" src="https://img.shields.io/badge/irc-libera.chat-blue"></a>
+<a href="https://matrix.to/#/#git-pages:catircservices.org"><img alt="Discuss on Matrix at #git-pages:catircservices.org" src="https://img.shields.io/matrix/git-pages%3Acatircservices.org?server_fqdn=matrix.org&fetchMode=summary&label=matrix&color=blue"></a>
+
 _git-pages-cli_ is a command-line application for publishing sites to [git-pages].
 
 > [!TIP]
