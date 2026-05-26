@@ -83,7 +83,10 @@ $ git-pages-cli https://example.org --server grebedoc.dev --password xyz --uploa
 
 ### Forge authorization
 
-Uploading a directory to a site on a wildcard domain (e.g. `https://<owner>.grebedoc.dev/<repo>`) requires the use of an access token with push permissions for the corresponding repository (`https://codeberg.org/<owner>/<repo>.git` in this case).
+> [!IMPORTANT]
+> If you are using Forgejo Actions, read the documentation for [git-pages/action](https://codeberg.org/git-pages/action) first.
+
+Uploading a directory to a site on a wildcard domain (e.g. `https://<owner>.grebedoc.dev/<repo>`) requires the use of an access token with push permissions for the corresponding repository (`https://codeberg.org/<owner>/<repo>.git` in this case). 
 
 To create such an access token on Forgejo:
 1. Open _Settings_ > _Applications_ > _Access tokens_.
