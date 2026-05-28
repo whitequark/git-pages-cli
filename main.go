@@ -18,6 +18,7 @@ import (
 	"runtime/debug"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/klauspost/compress/zstd"
@@ -53,6 +54,7 @@ var pathFlag = pflag.String("path", "", "upload contents to `<path>` without mod
 var parentsFlag = pflag.Bool("parents", false, "create parent directories of --path")
 var atomicFlag = pflag.Bool("atomic", false, "require partial updates to be atomic")
 var incrementalFlag = pflag.Bool("incremental", true, "make --upload-dir only upload changed files")
+var expiresFlag = pflag.Uint("expires", 0, "schedule site to be expired after `<lifetime>` days")
 var verboseFlag = pflag.BoolP("verbose", "v", false, "display more information for debugging")
 var versionFlag = pflag.BoolP("version", "V", false, "display version information")
 
@@ -265,6 +267,16 @@ func main() {
 		}
 	}
 
+	var expiresAt time.Time
+	if *expiresFlag != 0 {
+		if *uploadDirFlag == "" {
+			fmt.Fprintf(os.Stderr, "error: --expires requires --upload-dir\n")
+			os.Exit(usageExitCode)
+		} else {
+			expiresAt = time.Now().AddDate(0, 0, int(*expiresFlag))
+		}
+	}
+
 	var err error
 	siteURL, err := url.Parse(pflag.Args()[0])
 	if err != nil {
@@ -303,6 +315,9 @@ func main() {
 			os.Exit(1)
 		}
 		request.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+		if !expiresAt.IsZero() {
+			request.Header.Add("Expires", expiresAt.Format(http.TimeFormat))
+		}
 
 	case *uploadDirFlag != "":
 		uploadDir, err = os.OpenRoot(*uploadDirFlag)
@@ -323,15 +338,20 @@ func main() {
 			request, err = http.NewRequest("PUT", siteURL.String(), nil)
 		} else {
 			request, err = http.NewRequest("PATCH", siteURL.String(), nil)
+		}
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "error: %s\n", err)
+			os.Exit(1)
+		}
+		if *pathFlag != "" {
 			if *parentsFlag {
 				request.Header.Add("Create-Parents", "yes")
 			} else {
 				request.Header.Add("Create-Parents", "no")
 			}
 		}
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "error: %s\n", err)
-			os.Exit(1)
+		if !expiresAt.IsZero() {
+			request.Header.Add("Expires", expiresAt.Format(http.TimeFormat))
 		}
 		request.GetBody = func() (io.ReadCloser, error) {
 			return streamArchiveFS(uploadDir.FS(), pathPrefix, []string{}), nil
