@@ -372,10 +372,8 @@ func main() {
 	if request.Method == "PATCH" {
 		if *atomicFlag {
 			request.Header.Add("Atomic", "yes")
-			request.Header.Add("Race-Free", "yes") // deprecated name, to be removed soon
 		} else {
 			request.Header.Add("Atomic", "no")
-			request.Header.Add("Race-Free", "no") // deprecated name, to be removed soon
 		}
 	}
 	makeAuthorization := func(headerName string, kind string, value string) {
