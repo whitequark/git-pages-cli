@@ -55,6 +55,7 @@ var parentsFlag = pflag.Bool("parents", false, "create parent directories of --p
 var atomicFlag = pflag.Bool("atomic", false, "require partial updates to be atomic")
 var incrementalFlag = pflag.Bool("incremental", true, "make --upload-dir only upload changed files")
 var expiresFlag = pflag.Uint("expires", 0, "schedule site to be expired after `<lifetime>` days")
+var dryRunFlag = pflag.BoolP("dry-run", "n", false, "only check authorization, don't update")
 var verboseFlag = pflag.BoolP("verbose", "v", false, "display more information for debugging")
 var versionFlag = pflag.BoolP("version", "V", false, "display version information")
 
@@ -409,6 +410,9 @@ func main() {
 		makeAuthorization("Authorization", "Pages", *passwordFlag)
 	case *tokenFlag != "":
 		makeAuthorization("Forge-Authorization", "token", *tokenFlag)
+	}
+	if *dryRunFlag {
+		request.Header.Add("Dry-Run", "yes")
 	}
 	if *serverFlag != "" {
 		// Send the request to `--server` host, but set the `Host:` header to the site host.

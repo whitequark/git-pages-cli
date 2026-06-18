@@ -75,6 +75,14 @@ To delete a site:
 $ git-pages-cli https://example.org --password xyz --delete
 ```
 
+All of the operations above also accept the `--dry-run` option, which checks authorization only and doesn't perform any destructive operations:
+
+```console
+$ git-pages-cli https://example.org --password zyx --delete --dry-run
+result: error
+unauthorized
+```
+
 It is not possible to publish a site to a domain for the first time using HTTPS, since the git-pages server is not allowed to acquire a TLS certificate for a domain before a site is published on that domain. Either use plain HTTP instead, or provide a hostname for which the server *does* have a TLS certificate using the `--server` option:
 
 ```console
