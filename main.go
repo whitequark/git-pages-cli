@@ -471,10 +471,14 @@ func main() {
 		if matched, err := regexp.MatchString(`\bgit-pages\b`, serverIdent); err != nil {
 			panic(err)
 		} else if !matched {
-			fmt.Fprintf(os.Stderr,
-				"error: the tool only works with git-pages, but the URL points to a %q server\n",
+			message := fmt.Sprintf(
+				"the tool only works with git-pages, but the URL points to a %q server",
 				serverIdent)
-			os.Exit(1)
+			if request.Method != "GET" {
+				fmt.Fprintf(os.Stderr, "error: %s\n", message)
+				os.Exit(1)
+			}
+			fmt.Fprintf(os.Stderr, "warning: %s\n", message)
 		}
 		if displayServer {
 			fmt.Fprintf(os.Stderr, "server: %s\n", serverIdent)
