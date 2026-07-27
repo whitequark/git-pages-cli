@@ -16,6 +16,7 @@ import (
 	"os"
 	"regexp"
 	"runtime/debug"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -94,9 +95,19 @@ func gitBlobSHA256(data []byte) string {
 	return hex.EncodeToString(h.Sum(nil))
 }
 
+func isEntryIgnored(entry fs.DirEntry) error {
+	if entry.IsDir() && slices.Contains([]string{".git", ".jj"}, entry.Name()) {
+		return fs.SkipDir
+	}
+	return nil
+}
+
 func displayFS(root fs.FS, prefix string) error {
 	return fs.WalkDir(root, ".", func(name string, entry fs.DirEntry, err error) error {
 		if err != nil {
+			return err
+		}
+		if err := isEntryIgnored(entry); err != nil {
 			return err
 		}
 		switch {
@@ -126,6 +137,9 @@ func archiveFS(writer io.Writer, root fs.FS, prefix string, needBlobs []string) 
 	tarWriter := tar.NewWriter(zstdWriter)
 	if err = fs.WalkDir(root, ".", func(name string, entry fs.DirEntry, err error) error {
 		if err != nil {
+			return err
+		}
+		if err := isEntryIgnored(entry); err != nil {
 			return err
 		}
 		header := &tar.Header{}
