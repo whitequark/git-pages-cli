@@ -221,6 +221,12 @@ func makeWhiteout(path string) (reader io.Reader) {
 	return buffer
 }
 
+type RoundTripperFunc func(*http.Request) (*http.Response, error)
+
+func (f RoundTripperFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return f(req)
+}
+
 const usageExitCode = 125
 
 func usage() {
@@ -460,6 +466,12 @@ func main() {
 		}
 		return nil
 	}
+
+	// Some HTTPS servers (such as codeberg.page) can't handle uppercase letters in server names.
+	http.DefaultClient.Transport = RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
+		req.URL.Host = strings.ToLower(req.URL.Host)
+		return http.DefaultTransport.RoundTrip(req)
+	})
 
 	displayServer := *verboseFlag
 	for {
