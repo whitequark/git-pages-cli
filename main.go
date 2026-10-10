@@ -518,6 +518,10 @@ func main() {
 				for scanner.Scan() {
 					needBlobs = append(needBlobs, scanner.Text())
 				}
+				if err = scanner.Err(); err != nil {
+					fmt.Fprintf(os.Stderr, "error: %s\n", err)
+					os.Exit(1)
+				}
 				response.Body.Close()
 				if *verboseFlag {
 					fmt.Fprintf(os.Stderr, "incremental: need %d blobs\n", len(needBlobs))
