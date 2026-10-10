@@ -95,6 +95,15 @@ If enabled by the server administrator, it is possible to publish ephemeral site
 $ git-pages-cli https://example.org --password xyz --upload-dir site-contents --expires 14
 ```
 
+Certain hosting platforms, like GitHub Pages and Netlify, provide a built-in "pretty URL" feature, where `*.html` files can be accessed without the extension. For example, `/about.html` can be accessed as `/about` and/or `/about/`. To assist with migration from one of these platforms, a similar feature can be enabled when using `--upload-dir`:
+
+```console
+$ git-pages-cli https://example.org --password xyz --upload-dir site-contents --pretty-urls
+```
+
+The "pretty URL" feature is implemented entirely within _git-pages-cli_: this tool discovers every `*.html` file and generates appropriate `_redirects` file entries. If a `site-contents/_redirects` file exists, the generated redirect rules will be appended to its contents (so that user-defined rules take priority).
+
+
 ### Forge authorization
 
 > [!IMPORTANT]

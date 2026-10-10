@@ -1,12 +1,18 @@
 schema = 3
 
 [mod]
+  [mod."codeberg.org/git-pages/go-redirects"]
+    version = "v1.0.0"
+    hash = "sha256-xsttC58ofAVdn8Jn3fn3Y+AyOakarwKx3qPsmCIaL7g="
   [mod."github.com/google/uuid"]
     version = "v1.6.0"
     hash = "sha256-VWl9sqUzdOuhW0KzQlv0gwwUQClYkmZwSydHG2sALYw="
   [mod."github.com/klauspost/compress"]
     version = "v1.19.0"
     hash = "sha256-8tAQw82P+RzHACxt5Y8vV8jY+oHvKGCVyHCvMNdNiXM="
+  [mod."github.com/pkg/errors"]
+    version = "v0.9.1"
+    hash = "sha256-mNfQtcrQmu3sNg/7IwiieKWOgFQOVVe2yXgKBpe/wZw="
   [mod."github.com/spf13/pflag"]
     version = "v1.0.10"
     hash = "sha256-uDPnWjHpSrzXr17KEYEA1yAbizfcsfo5AyztY2tS6ZU="

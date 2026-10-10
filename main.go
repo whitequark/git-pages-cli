@@ -22,11 +22,11 @@ import (
 	"strings"
 	"time"
 
-	"golang.org/x/net/idna"
-
+	"codeberg.org/git-pages/go-redirects"
 	"github.com/google/uuid"
 	"github.com/klauspost/compress/zstd"
 	"github.com/spf13/pflag"
+	"golang.org/x/net/idna"
 )
 
 // By default the version information is retrieved from VCS. If not available during build,
@@ -59,6 +59,7 @@ var parentsFlag = pflag.Bool("parents", false, "create parent directories of --p
 var atomicFlag = pflag.Bool("atomic", false, "require partial updates to be atomic")
 var incrementalFlag = pflag.Bool("incremental", true, "make --upload-dir only upload changed files")
 var expiresFlag = pflag.Uint("expires", 0, "schedule site to be expired after `<lifetime>` days")
+var prettyURLsFlag = pflag.Bool("pretty-urls", false, "enable Netlify-style URL redirects")
 var dryRunFlag = pflag.BoolP("dry-run", "n", false, "only check authorization, don't update")
 var verboseFlag = pflag.BoolP("verbose", "v", false, "display more information for debugging")
 var debugRequestFlag = pflag.Bool("debug-body", false, "dump request body for debugging")
@@ -167,13 +168,82 @@ func displayFS(root *os.Root, prefix string) error {
 	})
 }
 
+type Unit = struct{}
+
+func prettyURLsFS(root fs.FS) ([]redirects.Rule, error) {
+	entries := map[string]Unit{}
+	err := fs.WalkDir(root, ".", func(name string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if err := isEntryIgnored(entry); err != nil {
+			return err
+		}
+		if entry.Type().IsRegular() && strings.HasSuffix(name, ".html") {
+			entries[name] = Unit{}
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	redirectRules := []redirects.Rule{}
+	addRedirect := func(from string, to string, status int, force bool) {
+		redirectRules = append(redirectRules, redirects.Rule{
+			From:   "/" + from,
+			To:     "/" + to,
+			Status: status,
+			Force:  force,
+		})
+	}
+
+	// See https://answers.netlify.com/t/31191
+	// The rules we use differ in one way: they are strongly normalizing (there is one canonical
+	// URL and every other recognized URL returns a 3xx redirect to the user agent).
+	for name := range entries {
+		noExtName, _ := strings.CutSuffix(name, ".html")
+		baseName := filepath.Base(name)
+		dirName := filepath.Dir(name)
+		if baseName == "index.html" { // With a file at /blog/index.html
+			if _, found := entries[dirName+".html"]; dirName != "." && found {
+				continue // (and no file at /blog.html!)
+			}
+			// Navigating to /blog.html will 301 redirect and serve /blog/
+			addRedirect(dirName+".html", dirName+"/", 301, true)
+			// Navigating to /blog/index.html will 301 redirect and serve /blog/
+			addRedirect(dirName+"/index.html", dirName+"/", 301, true)
+			// Navigating to /blog will 301 redirect and serve /blog/
+			// (built-in)
+			// Navigating to /blog/ will serve /blog/
+			// (built-in)
+		} else { // With a file at /blog.html
+			// Navigating to /blog.html will ~~serve /blog.html~~ redirect and serve /blog
+			addRedirect(name, noExtName, 301, true)
+			// Navigating to /blog will serve /blog
+			addRedirect(noExtName, name, 200, true)
+			// Navigating to /blog/ will 301 redirect and serve /blog
+			addRedirect(noExtName+"/", noExtName, 301, true)
+		}
+	}
+
+	return redirectRules, nil
+}
+
+type fsSource struct {
+	root           *os.Root
+	prefix         string
+	needBlobs      []string
+	extraRedirects []redirects.Rule
+}
+
 // It doesn't make sense to use incremental updates for very small files since the cost of
 // repeating a request to fill in a missing blob is likely to be higher than any savings gained.
 const incrementalSizeThreshold = 256
 
-func archiveFS(writer io.Writer, root *os.Root, prefix string, needBlobs []string) (err error) {
+func archiveFS(writer io.Writer, src *fsSource) (err error) {
 	requestedSet := make(map[string]struct{})
-	for _, hash := range needBlobs {
+	for _, hash := range src.needBlobs {
 		requestedSet[hash] = struct{}{}
 	}
 	zstdWriter, _ := zstd.NewWriter(writer)
@@ -189,12 +259,12 @@ func archiveFS(writer io.Writer, root *os.Root, prefix string, needBlobs []strin
 			}
 			header := &tar.Header{}
 			data := []byte{}
-			if prefix == "" && name == "." {
+			if src.prefix == "" && name == "." {
 				return nil
 			} else if name == "." {
-				header.Name = prefix
+				header.Name = src.prefix
 			} else {
-				header.Name = prefix + name
+				header.Name = src.prefix + name
 			}
 			switch {
 			case entry.Type().IsDir():
@@ -205,7 +275,11 @@ func archiveFS(writer io.Writer, root *os.Root, prefix string, needBlobs []strin
 				if data, err = fs.ReadFile(root.FS(), name); err != nil {
 					return err
 				}
-				if *incrementalFlag && len(data) > incrementalSizeThreshold {
+				if src.prefix == "" && name == "_redirects" {
+					redirectText := redirects.Must(redirects.UnparseString(src.extraRedirects))
+					// Append the auto-generated rules so that user-defined ones take priority.
+					data = append(data, []byte("\n"+redirectText)...)
+				} else if *incrementalFlag && len(data) > incrementalSizeThreshold {
 					hash := gitBlobSHA256(data)
 					if _, requested := requestedSet[hash]; !requested {
 						header.Typeflag = tar.TypeSymlink
@@ -243,7 +317,7 @@ func archiveFS(writer io.Writer, root *os.Root, prefix string, needBlobs []strin
 			return err
 		})
 	}
-	if err = worker(root, prefix); err != nil {
+	if err = worker(src.root, src.prefix); err != nil {
 		return
 	}
 	if err = tarWriter.Close(); err != nil {
@@ -256,10 +330,10 @@ func archiveFS(writer io.Writer, root *os.Root, prefix string, needBlobs []strin
 }
 
 // Stream archive data without ever loading the entire working set into RAM.
-func streamArchiveFS(root *os.Root, prefix string, needBlobs []string) io.ReadCloser {
+func streamArchiveFS(src *fsSource) io.ReadCloser {
 	reader, writer := io.Pipe()
 	go func() {
-		err := archiveFS(writer, root, prefix, needBlobs)
+		err := archiveFS(writer, src)
 		if err != nil {
 			writer.CloseWithError(err)
 		} else {
@@ -365,6 +439,19 @@ func main() {
 		}
 	}
 
+	if *prettyURLsFlag {
+		if *pathFlag != "" {
+			// Uploading `_redirects` clears all old redirects, so this can't be made to work.
+			fmt.Fprintf(os.Stderr, "error: --pretty-urls is incompatible with --path\n")
+			os.Exit(usageExitCode)
+		}
+		if *uploadDirFlag == "" {
+			// Have to be able to enumerate files to generate redirects for them.
+			fmt.Fprintf(os.Stderr, "error: --pretty-urls requires --upload-dir\n")
+			os.Exit(usageExitCode)
+		}
+	}
+
 	var err error
 	siteURL, err := url.Parse(pflag.Args()[0])
 	if err != nil {
@@ -373,7 +460,7 @@ func main() {
 	}
 
 	var request *http.Request
-	var uploadDir *os.Root
+	var dirSource *fsSource
 	switch {
 	case *challengeFlag || *challengeBareFlag:
 		if *passwordFlag == "" {
@@ -408,7 +495,7 @@ func main() {
 		}
 
 	case *uploadDirFlag != "":
-		uploadDir, err = os.OpenRoot(*uploadDirFlag)
+		uploadDir, err := os.OpenRoot(*uploadDirFlag)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "error: invalid directory: %s\n", err)
 			os.Exit(1)
@@ -420,6 +507,22 @@ func main() {
 				fmt.Fprintf(os.Stderr, "error: %s\n", err)
 				os.Exit(1)
 			}
+		}
+
+		extraRedirects := []redirects.Rule{}
+		if *prettyURLsFlag {
+			extraRedirects, err = prettyURLsFS(uploadDir.FS())
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "error: %s\n", err)
+				os.Exit(1)
+			}
+		}
+
+		dirSource := &fsSource{
+			root:           uploadDir,
+			prefix:         pathPrefix,
+			needBlobs:      []string{},
+			extraRedirects: extraRedirects,
 		}
 
 		if *pathFlag == "" {
@@ -442,7 +545,7 @@ func main() {
 			request.Header.Add("Expires", expiresAt.Format(http.TimeFormat))
 		}
 		request.GetBody = func() (io.ReadCloser, error) {
-			return streamArchiveFS(uploadDir, pathPrefix, []string{}), nil
+			return streamArchiveFS(dirSource), nil
 		}
 		request.Body, _ = request.GetBody()
 		request.ContentLength = -1
@@ -631,7 +734,8 @@ func main() {
 					fmt.Fprintf(os.Stderr, "incremental: need %d blobs\n", len(needBlobs))
 				}
 				request.GetBody = func() (io.ReadCloser, error) {
-					return streamArchiveFS(uploadDir, pathPrefix, needBlobs), nil
+					dirSource.needBlobs = needBlobs
+					return streamArchiveFS(dirSource), nil
 				}
 				request.Body, _ = request.GetBody()
 				continue // resubmit
