@@ -246,12 +246,17 @@ type fsSource struct {
 const incrementalSizeThreshold = 256
 
 func archiveFS(writer io.Writer, src *fsSource) (err error) {
+	zstdWriter, _ := zstd.NewWriter(writer)
+	tarWriter := tar.NewWriter(zstdWriter)
+
 	requestedSet := make(map[string]struct{})
 	for _, hash := range src.needBlobs {
 		requestedSet[hash] = struct{}{}
 	}
-	zstdWriter, _ := zstd.NewWriter(writer)
-	tarWriter := tar.NewWriter(zstdWriter)
+
+	redirectsText := redirects.Must(redirects.UnparseString(src.extraRedirects))
+	redirectsFound := false
+
 	var worker func(root *os.Root, prefix string) error
 	worker = func(root *os.Root, prefix string) error {
 		return fs.WalkDir(root.FS(), ".", func(name string, entry fs.DirEntry, err error) error {
@@ -280,9 +285,9 @@ func archiveFS(writer io.Writer, src *fsSource) (err error) {
 					return err
 				}
 				if src.prefix == "" && name == "_redirects" {
-					redirectText := redirects.Must(redirects.UnparseString(src.extraRedirects))
+					redirectsFound = true
 					// Append the auto-generated rules so that user-defined ones take priority.
-					data = append(data, []byte("\n"+redirectText)...)
+					data = append(data, []byte("\n"+redirectsText)...)
 				} else if *incrementalFlag && len(data) > incrementalSizeThreshold {
 					hash := gitBlobSHA256(data)
 					if _, requested := requestedSet[hash]; !requested {
@@ -324,6 +329,20 @@ func archiveFS(writer io.Writer, src *fsSource) (err error) {
 	if err = worker(src.root, src.prefix); err != nil {
 		return
 	}
+	if !redirectsFound && len(redirectsText) > 0 {
+		header := &tar.Header{
+			Typeflag: tar.TypeReg,
+			Name:     "_redirects",
+			Size:     int64(len(redirectsText)),
+		}
+		if err = tarWriter.WriteHeader(header); err != nil {
+			return
+		}
+		if _, err = tarWriter.Write([]byte(redirectsText)); err != nil {
+			return
+		}
+	}
+
 	if err = tarWriter.Close(); err != nil {
 		return
 	}
