@@ -60,6 +60,7 @@ var incrementalFlag = pflag.Bool("incremental", true, "make --upload-dir only up
 var expiresFlag = pflag.Uint("expires", 0, "schedule site to be expired after `<lifetime>` days")
 var dryRunFlag = pflag.BoolP("dry-run", "n", false, "only check authorization, don't update")
 var verboseFlag = pflag.BoolP("verbose", "v", false, "display more information for debugging")
+var debugRequestFlag = pflag.Bool("debug-body", false, "dump request body for debugging")
 var versionFlag = pflag.BoolP("version", "V", false, "display version information")
 
 func singleOperation() bool {
@@ -234,6 +235,7 @@ func usage() {
 }
 
 func main() {
+	pflag.CommandLine.MarkHidden("debug-body")
 	pflag.Usage = usage
 	pflag.Parse()
 	if !singleOperation() || (!*versionFlag && len(pflag.Args()) != 1) {
@@ -473,7 +475,33 @@ func main() {
 	}
 
 	displayServer := *verboseFlag
-	for {
+	for numRequest := 0; ; numRequest += 1 {
+		if *debugRequestFlag {
+			archiveExt := "bin"
+			switch request.Header.Get("Content-Type") {
+			case "application/x-tar":
+				archiveExt = "tar"
+			case "application/x-tar+zstd":
+				archiveExt = "tar.zst"
+			}
+			file, err := os.Create(fmt.Sprintf("body-%d.%s", numRequest, archiveExt))
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "error: %s\n", err)
+				os.Exit(1)
+			}
+			body, err := request.GetBody()
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "error: %s\n", err)
+				os.Exit(1)
+			}
+			_, err = io.Copy(file, body)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "error: %s\n", err)
+				os.Exit(1)
+			}
+			file.Close()
+		}
+
 		response, err := http.DefaultClient.Do(request)
 		if err != nil {
 			if response != nil && (response.StatusCode == 301 || response.StatusCode == 302) {
