@@ -540,7 +540,7 @@ func main() {
 			}
 		}
 
-		dirSource := &fsSource{
+		dirSource = &fsSource{
 			root:           uploadDir,
 			prefix:         pathPrefix,
 			needBlobs:      []string{},
