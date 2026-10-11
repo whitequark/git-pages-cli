@@ -21,6 +21,8 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/net/idna"
+
 	"github.com/google/uuid"
 	"github.com/klauspost/compress/zstd"
 	"github.com/spf13/pflag"
@@ -270,6 +272,15 @@ func main() {
 		}
 		// Trim all trailing newlines; there's no legitimate reason to have one in a password.
 		*passwordFlag = strings.TrimRight(string(contents), "\n")
+	}
+
+	if *serverFlag != "" {
+		var idnaProfile = idna.New(idna.MapForLookup(), idna.BidiRule())
+		// See an explanation in git-pages auth.go for why this replacement is done.
+		if _, err := idnaProfile.ToASCII(strings.ReplaceAll(*serverFlag, "_", "a")); err != nil {
+			fmt.Fprintf(os.Stderr, "error: --server must be used with a domain name: %q\n", *serverFlag)
+			os.Exit(usageExitCode)
+		}
 	}
 
 	var pathPrefix string
