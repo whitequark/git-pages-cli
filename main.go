@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"regexp"
 	"runtime/debug"
 	"slices"
@@ -105,23 +106,62 @@ func isEntryIgnored(entry fs.DirEntry) error {
 	return nil
 }
 
-func displayFS(root fs.FS, prefix string) error {
-	return fs.WalkDir(root, ".", func(name string, entry fs.DirEntry, err error) error {
+func expandSymlink(root *os.Root, entry fs.DirEntry) (
+	linkTarget, symbolicPath, expandPath string, err error,
+) {
+	if linkTarget, err = root.Readlink(entry.Name()); err != nil {
+		return
+	}
+
+	expandPath = linkTarget
+	if filepath.IsAbs(expandPath) {
+		// Absolute path.
+	} else {
+		expandPath = filepath.Clean(filepath.Join(entry.Name(), "..", expandPath))
+		if strings.HasPrefix(expandPath, "../") {
+			// Points outside of `root`; convert to an absolute path.
+			expandPath = filepath.Join(root.Name(), expandPath)
+		} else {
+			// Points within `root`; keep relative.
+			symbolicPath = expandPath
+			expandPath = ""
+		}
+	}
+	return
+}
+
+func displayFS(root *os.Root, prefix string) error {
+	return fs.WalkDir(root.FS(), ".", func(name string, entry fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 		if err := isEntryIgnored(entry); err != nil {
 			return err
 		}
+		fullName := filepath.Join(prefix, name)
 		switch {
 		case entry.Type().IsDir():
-			fmt.Fprintf(os.Stderr, "dir     %s%s\n", prefix, name)
+			fmt.Fprintf(os.Stderr, "dir     %s\n", fullName)
 		case entry.Type().IsRegular():
-			fmt.Fprintf(os.Stderr, "file    %s%s\n", prefix, name)
+			fmt.Fprintf(os.Stderr, "file    %s\n", fullName)
 		case entry.Type() == fs.ModeSymlink:
-			fmt.Fprintf(os.Stderr, "symlink %s%s\n", prefix, name)
+			linkTarget, symbolicPath, expandPath, err := expandSymlink(root, entry)
+			if err != nil {
+				return err
+			}
+			if symbolicPath != "" {
+				fmt.Fprintf(os.Stderr, "symlink %s -> %s\n", fullName, linkTarget)
+			}
+			if expandPath != "" {
+				fmt.Fprintf(os.Stderr, "follow  %s -> %s\n", fullName, linkTarget)
+				expandRoot, err := os.OpenRoot(expandPath)
+				if err != nil {
+					return err
+				}
+				displayFS(expandRoot, prefix+entry.Name()+"/")
+			}
 		default:
-			fmt.Fprintf(os.Stderr, "other   %s%s\n", prefix, name)
+			fmt.Fprintf(os.Stderr, "other   %s\n", fullName)
 		}
 		return nil
 	})
@@ -131,63 +171,79 @@ func displayFS(root fs.FS, prefix string) error {
 // repeating a request to fill in a missing blob is likely to be higher than any savings gained.
 const incrementalSizeThreshold = 256
 
-func archiveFS(writer io.Writer, root fs.FS, prefix string, needBlobs []string) (err error) {
+func archiveFS(writer io.Writer, root *os.Root, prefix string, needBlobs []string) (err error) {
 	requestedSet := make(map[string]struct{})
 	for _, hash := range needBlobs {
 		requestedSet[hash] = struct{}{}
 	}
 	zstdWriter, _ := zstd.NewWriter(writer)
 	tarWriter := tar.NewWriter(zstdWriter)
-	if err = fs.WalkDir(root, ".", func(name string, entry fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if err := isEntryIgnored(entry); err != nil {
-			return err
-		}
-		header := &tar.Header{}
-		data := []byte{}
-		if prefix == "" && name == "." {
-			return nil
-		} else if name == "." {
-			header.Name = prefix
-		} else {
-			header.Name = prefix + name
-		}
-		switch {
-		case entry.Type().IsDir():
-			header.Typeflag = tar.TypeDir
-			header.Name += "/"
-		case entry.Type().IsRegular():
-			header.Typeflag = tar.TypeReg
-			if data, err = fs.ReadFile(root, name); err != nil {
+	var worker func(root *os.Root, prefix string) error
+	worker = func(root *os.Root, prefix string) error {
+		return fs.WalkDir(root.FS(), ".", func(name string, entry fs.DirEntry, err error) error {
+			if err != nil {
 				return err
 			}
-			if *incrementalFlag && len(data) > incrementalSizeThreshold {
-				hash := gitBlobSHA256(data)
-				if _, requested := requestedSet[hash]; !requested {
-					header.Typeflag = tar.TypeSymlink
-					header.Linkname = "/git/blobs/" + hash
-					data = nil
+			if err := isEntryIgnored(entry); err != nil {
+				return err
+			}
+			header := &tar.Header{}
+			data := []byte{}
+			if prefix == "" && name == "." {
+				return nil
+			} else if name == "." {
+				header.Name = prefix
+			} else {
+				header.Name = prefix + name
+			}
+			switch {
+			case entry.Type().IsDir():
+				header.Typeflag = tar.TypeDir
+				header.Name += "/"
+			case entry.Type().IsRegular():
+				header.Typeflag = tar.TypeReg
+				if data, err = fs.ReadFile(root.FS(), name); err != nil {
+					return err
 				}
+				if *incrementalFlag && len(data) > incrementalSizeThreshold {
+					hash := gitBlobSHA256(data)
+					if _, requested := requestedSet[hash]; !requested {
+						header.Typeflag = tar.TypeSymlink
+						header.Linkname = "/git/blobs/" + hash
+						data = nil
+					}
+				}
+			case entry.Type() == fs.ModeSymlink:
+				_, symbolicPath, expandPath, err := expandSymlink(root, entry)
+				if err != nil {
+					return err
+				}
+				if symbolicPath != "" {
+					header.Typeflag = tar.TypeSymlink
+					header.Linkname = symbolicPath
+				}
+				if expandPath != "" {
+					header.Typeflag = tar.TypeDir
+					expandRoot, err := os.OpenRoot(expandPath)
+					if err != nil {
+						return err
+					}
+					worker(expandRoot, prefix+entry.Name()+"/")
+				}
+			default:
+				return errors.New("tar: cannot add non-regular file")
 			}
-		case entry.Type() == fs.ModeSymlink:
-			header.Typeflag = tar.TypeSymlink
-			if header.Linkname, err = fs.ReadLink(root, name); err != nil {
+			header.Size = int64(len(data))
+			if err = tarWriter.WriteHeader(header); err != nil {
 				return err
 			}
-		default:
-			return errors.New("tar: cannot add non-regular file")
-		}
-		header.Size = int64(len(data))
-		if err = tarWriter.WriteHeader(header); err != nil {
+			if _, err = tarWriter.Write(data); err != nil {
+				return err
+			}
 			return err
-		}
-		if _, err = tarWriter.Write(data); err != nil {
-			return err
-		}
-		return err
-	}); err != nil {
+		})
+	}
+	if err = worker(root, prefix); err != nil {
 		return
 	}
 	if err = tarWriter.Close(); err != nil {
@@ -200,7 +256,7 @@ func archiveFS(writer io.Writer, root fs.FS, prefix string, needBlobs []string) 
 }
 
 // Stream archive data without ever loading the entire working set into RAM.
-func streamArchiveFS(root fs.FS, prefix string, needBlobs []string) io.ReadCloser {
+func streamArchiveFS(root *os.Root, prefix string, needBlobs []string) io.ReadCloser {
 	reader, writer := io.Pipe()
 	go func() {
 		err := archiveFS(writer, root, prefix, needBlobs)
@@ -359,7 +415,7 @@ func main() {
 		}
 
 		if *verboseFlag {
-			err := displayFS(uploadDir.FS(), pathPrefix)
+			err := displayFS(uploadDir, pathPrefix)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "error: %s\n", err)
 				os.Exit(1)
@@ -386,7 +442,7 @@ func main() {
 			request.Header.Add("Expires", expiresAt.Format(http.TimeFormat))
 		}
 		request.GetBody = func() (io.ReadCloser, error) {
-			return streamArchiveFS(uploadDir.FS(), pathPrefix, []string{}), nil
+			return streamArchiveFS(uploadDir, pathPrefix, []string{}), nil
 		}
 		request.Body, _ = request.GetBody()
 		request.ContentLength = -1
@@ -575,7 +631,7 @@ func main() {
 					fmt.Fprintf(os.Stderr, "incremental: need %d blobs\n", len(needBlobs))
 				}
 				request.GetBody = func() (io.ReadCloser, error) {
-					return streamArchiveFS(uploadDir.FS(), pathPrefix, needBlobs), nil
+					return streamArchiveFS(uploadDir, pathPrefix, needBlobs), nil
 				}
 				request.Body, _ = request.GetBody()
 				continue // resubmit
