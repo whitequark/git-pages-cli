@@ -69,6 +69,12 @@ To publish a site from a directory on your machine:
 $ git-pages-cli https://example.org --password xyz --upload-dir site-contents
 ```
 
+To quickly create a redirect:
+
+```console
+$ git-pages-cli https://www.example.org --password xyz --redirect https://example.org
+```
+
 To delete a site:
 
 ```console

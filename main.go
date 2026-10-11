@@ -51,6 +51,7 @@ var challengeFlag = pflag.Bool("challenge", false, "compute DNS challenge entry 
 var challengeBareFlag = pflag.Bool("challenge-bare", false, "compute DNS challenge entry from password (output bare TXT value)")
 var uploadGitFlag = pflag.String("upload-git", "", "replace site with contents of git `<repository>`")
 var uploadDirFlag = pflag.String("upload-dir", "", "replace whole site or a path with contents of `<directory>`")
+var redirectFlag = pflag.String("redirect", "", "redirect from <site-url>/... to `<redir-url>`/... (307 Temporary Redirect)")
 var deleteFlag = pflag.Bool("delete", false, "delete whole site or a path")
 var debugManifestFlag = pflag.Bool("debug-manifest", false, "retrieve site manifest as ProtoJSON, for debugging")
 var serverFlag = pflag.String("server", "", "hostname of server to connect to")
@@ -77,6 +78,9 @@ func singleOperation() bool {
 		operations++
 	}
 	if *uploadGitFlag != "" {
+		operations++
+	}
+	if *redirectFlag != "" {
 		operations++
 	}
 	if *deleteFlag {
@@ -343,6 +347,27 @@ func streamArchiveFS(src *fsSource) io.ReadCloser {
 	return reader
 }
 
+func makeRedirects(rules []redirects.Rule) (reader io.Reader) {
+	redirectsData := redirects.Must(redirects.UnparseString(rules))
+
+	buffer := &bytes.Buffer{}
+	tarWriter := tar.NewWriter(buffer)
+	if err := tarWriter.WriteHeader(&tar.Header{
+		Typeflag: tar.TypeReg,
+		Name:     "_redirects",
+		Size:     int64(len(redirectsData)),
+	}); err != nil {
+		panic(err)
+	}
+	if _, err := tarWriter.Write([]byte(redirectsData)); err != nil {
+		panic(err)
+	}
+	if err := tarWriter.Close(); err != nil {
+		panic(err)
+	}
+	return buffer
+}
+
 func makeWhiteout(path string) (reader io.Reader) {
 	buffer := &bytes.Buffer{}
 	tarWriter := tar.NewWriter(buffer)
@@ -362,7 +387,7 @@ const usageExitCode = 125
 
 func usage() {
 	fmt.Fprintf(os.Stderr,
-		"Usage: %s <site-url> {--challenge|--upload-git url|--upload-dir path|--delete} [options...]\n",
+		"Usage: %s <site-url> {--challenge|--upload-git url|--upload-dir path|--redirect url|--delete} [options...]\n",
 		os.Args[0],
 	)
 	pflag.PrintDefaults()
@@ -431,7 +456,7 @@ func main() {
 
 	var expiresAt time.Time
 	if *expiresFlag != 0 {
-		if *uploadDirFlag == "" {
+		if *uploadGitFlag == "" && *uploadDirFlag == "" && *redirectFlag == "" {
 			fmt.Fprintf(os.Stderr, "error: --expires requires --upload-dir\n")
 			os.Exit(usageExitCode)
 		} else {
@@ -490,9 +515,6 @@ func main() {
 			os.Exit(1)
 		}
 		request.Header.Add("Content-Type", "application/x-www-form-urlencoded")
-		if !expiresAt.IsZero() {
-			request.Header.Add("Expires", expiresAt.Format(http.TimeFormat))
-		}
 
 	case *uploadDirFlag != "":
 		uploadDir, err := os.OpenRoot(*uploadDirFlag)
@@ -541,9 +563,6 @@ func main() {
 				request.Header.Add("Create-Parents", "no")
 			}
 		}
-		if !expiresAt.IsZero() {
-			request.Header.Add("Expires", expiresAt.Format(http.TimeFormat))
-		}
 		request.GetBody = func() (io.ReadCloser, error) {
 			return streamArchiveFS(dirSource), nil
 		}
@@ -551,6 +570,26 @@ func main() {
 		request.ContentLength = -1
 		request.Header.Add("Content-Type", "application/x-tar+zstd")
 		request.Header.Add("Accept", "application/vnd.git-pages.unresolved;q=1.0, text/plain;q=0.9")
+
+	case *redirectFlag != "":
+		redirectURL, err := url.Parse(*redirectFlag)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "error: %s\n", err)
+			os.Exit(1)
+		}
+
+		request, err = http.NewRequest("PUT", siteURL.String(), makeRedirects([]redirects.Rule{
+			{
+				From:   "/*",
+				To:     redirectURL.JoinPath(":splat").String(),
+				Status: http.StatusTemporaryRedirect,
+			},
+		}))
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "error: %s\n", err)
+			os.Exit(1)
+		}
+		request.Header.Add("Content-Type", "application/x-tar")
 
 	case *deleteFlag:
 		if *pathFlag == "" {
@@ -579,7 +618,9 @@ func main() {
 	default:
 		panic("no operation chosen")
 	}
-	request.Header.Add("User-Agent", versionInfo())
+	if !expiresAt.IsZero() {
+		request.Header.Add("Expires", expiresAt.Format(http.TimeFormat))
+	}
 	if request.Method == "PATCH" {
 		if *atomicFlag {
 			request.Header.Add("Atomic", "yes")
@@ -587,6 +628,7 @@ func main() {
 			request.Header.Add("Atomic", "no")
 		}
 	}
+	request.Header.Add("User-Agent", versionInfo())
 	makeAuthorization := func(headerName string, kind string, value string) {
 		if strings.ContainsAny(value, "\r\n") {
 			fmt.Fprintf(os.Stderr, "error: invalid characters in %s header value: %q\n",
