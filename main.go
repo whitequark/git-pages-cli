@@ -484,6 +484,11 @@ func main() {
 				}
 			}
 			fmt.Fprintf(os.Stderr, "error: %s\n", err)
+			// Pain: https://github.com/golang/go/issues/71500
+			if strings.HasSuffix(err.Error(), "tls: internal error") {
+				fmt.Fprintf(os.Stderr, "hint: initial deployment to an https:// URL will fail; "+
+					"use an http:// URL first\n")
+			}
 			os.Exit(1)
 		}
 		serverValues := response.Header.Values("Server")
