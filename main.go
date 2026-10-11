@@ -216,11 +216,15 @@ func streamArchiveFS(root fs.FS, prefix string, needBlobs []string) io.ReadClose
 func makeWhiteout(path string) (reader io.Reader) {
 	buffer := &bytes.Buffer{}
 	tarWriter := tar.NewWriter(buffer)
-	tarWriter.WriteHeader(&tar.Header{
+	if err := tarWriter.WriteHeader(&tar.Header{
 		Typeflag: tar.TypeChar,
-		Name:     path,
-	})
-	tarWriter.Flush()
+		Name:     strings.TrimSuffix(path, "/"),
+	}); err != nil {
+		panic(err)
+	}
+	if err := tarWriter.Close(); err != nil {
+		panic(err)
+	}
 	return buffer
 }
 
