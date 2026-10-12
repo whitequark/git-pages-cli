@@ -209,7 +209,10 @@ func prettyURLsFS(root fs.FS) ([]redirects.Rule, error) {
 		noExtName, _ := strings.CutSuffix(name, ".html")
 		baseName := filepath.Base(name)
 		dirName := filepath.Dir(name)
-		if baseName == "index.html" { // With a file at /blog/index.html
+		if baseName == "index.html" && dirName == "." {
+			// Navigating to /index.html will 301 redirect and serve /
+			addRedirect("index.html", "", 301, true)
+		} else if baseName == "index.html" { // With a file at /blog/index.html
 			if _, found := entries[dirName+".html"]; dirName != "." && found {
 				continue // (and no file at /blog.html!)
 			}
