@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
 	"runtime/debug"
@@ -174,7 +175,12 @@ func displayFS(root *os.Root, prefix string) error {
 
 type Unit = struct{}
 
-func prettyURLsFS(root fs.FS) ([]redirects.Rule, error) {
+func prettyURLsFS(root fs.FS, rootPath string) ([]redirects.Rule, error) {
+	rootPath = path.Clean(rootPath)
+	if rootPath != "/" {
+		rootPath += "/"
+	}
+
 	entries := map[string]Unit{}
 	err := fs.WalkDir(root, ".", func(name string, entry fs.DirEntry, err error) error {
 		if err != nil {
@@ -195,8 +201,8 @@ func prettyURLsFS(root fs.FS) ([]redirects.Rule, error) {
 	redirectRules := []redirects.Rule{}
 	addRedirect := func(from string, to string, status int, force bool) {
 		redirectRules = append(redirectRules, redirects.Rule{
-			From:   "/" + from,
-			To:     "/" + to,
+			From:   rootPath + from,
+			To:     rootPath + to,
 			Status: status,
 			Force:  force,
 		})
@@ -555,7 +561,7 @@ func main() {
 
 		extraRedirects := []redirects.Rule{}
 		if *prettyURLsFlag {
-			extraRedirects, err = prettyURLsFS(uploadDir.FS())
+			extraRedirects, err = prettyURLsFS(uploadDir.FS(), siteURL.Path)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "error: %s\n", err)
 				os.Exit(1)
