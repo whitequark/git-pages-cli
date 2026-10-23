@@ -488,16 +488,16 @@ func main() {
 	}
 
 	if *serverFlag != "" {
-		if serverHost, _, err := net.SplitHostPort(*serverFlag); err != nil {
-			fmt.Fprintf(os.Stderr, "error: invalid --server value %q\n", *serverFlag)
+		serverHost, _, err := net.SplitHostPort(*serverFlag)
+		if err != nil {
+			serverHost = *serverFlag
+		}
+
+		var idnaProfile = idna.New(idna.MapForLookup(), idna.BidiRule())
+		// See an explanation in git-pages auth.go for why this replacement is done.
+		if _, err := idnaProfile.ToASCII(strings.ReplaceAll(serverHost, "_", "a")); err != nil {
+			fmt.Fprintf(os.Stderr, "error: --server must be used with a domain name: %q\n", serverHost)
 			os.Exit(usageExitCode)
-		} else {
-			var idnaProfile = idna.New(idna.MapForLookup(), idna.BidiRule())
-			// See an explanation in git-pages auth.go for why this replacement is done.
-			if _, err := idnaProfile.ToASCII(strings.ReplaceAll(serverHost, "_", "a")); err != nil {
-				fmt.Fprintf(os.Stderr, "error: --server must be used with a domain name: %q\n", serverHost)
-				os.Exit(usageExitCode)
-			}
 		}
 	}
 
