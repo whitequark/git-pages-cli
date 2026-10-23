@@ -424,6 +424,7 @@ func usage() {
 
 func main() {
 	pflag.CommandLine.MarkHidden("debug-body")
+	pflag.CommandLine.MarkHidden("incremental") // available since git-pages v0.3 (2025-12-07)
 	pflag.Usage = usage
 	pflag.Parse()
 	if !singleOperation() || (!*versionFlag && len(pflag.Args()) != 1) {
