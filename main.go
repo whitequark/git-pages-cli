@@ -63,6 +63,7 @@ var atomicFlag = pflag.Bool("atomic", false, "require partial updates to be atom
 var incrementalFlag = pflag.Bool("incremental", true, "make --upload-dir only upload changed files")
 var expiresFlag = pflag.Uint("expires", 0, "schedule site to be expired after `<lifetime>` days")
 var prettyURLsFlag = pflag.Bool("pretty-urls", false, "enable Netlify-style URL redirects")
+var commentFlag = pflag.String("comment", "", "(git-pages 0.10+) embed `<comment>` into site manifest")
 var dryRunFlag = pflag.BoolP("dry-run", "n", false, "only check authorization, don't update")
 var verboseFlag = pflag.BoolP("verbose", "v", false, "display more information for debugging")
 var debugRequestFlag = pflag.Bool("debug-body", false, "dump request body for debugging")
@@ -104,6 +105,21 @@ func gitBlobSHA256(data []byte) string {
 	h.Write([]byte{0})
 	h.Write(data)
 	return hex.EncodeToString(h.Sum(nil))
+}
+
+func makeTarWriter(writer io.Writer) (*tar.Writer, error) {
+	tarWriter := tar.NewWriter(writer)
+	if *commentFlag != "" {
+		if err := tarWriter.WriteHeader(&tar.Header{
+			Typeflag: tar.TypeXGlobalHeader,
+			PAXRecords: map[string]string{
+				"comment": *commentFlag,
+			},
+		}); err != nil {
+			return nil, err
+		}
+	}
+	return tarWriter, nil
 }
 
 func isEntryIgnored(entry fs.DirEntry) error {
@@ -257,7 +273,10 @@ const incrementalSizeThreshold = 256
 
 func archiveFS(writer io.Writer, src *fsSource) (err error) {
 	zstdWriter, _ := zstd.NewWriter(writer)
-	tarWriter := tar.NewWriter(zstdWriter)
+	tarWriter, err := makeTarWriter(zstdWriter)
+	if err != nil {
+		return err
+	}
 
 	requestedSet := make(map[string]struct{})
 	for _, hash := range src.needBlobs {
@@ -380,7 +399,10 @@ func makeRedirects(rules []redirects.Rule) (reader io.Reader) {
 	redirectsData := redirects.Must(redirects.UnparseString(rules))
 
 	buffer := &bytes.Buffer{}
-	tarWriter := tar.NewWriter(buffer)
+	tarWriter, err := makeTarWriter(buffer)
+	if err != nil {
+		panic(err)
+	}
 	if err := tarWriter.WriteHeader(&tar.Header{
 		Typeflag: tar.TypeReg,
 		Name:     "_redirects",
@@ -510,6 +532,12 @@ func main() {
 			fmt.Fprintf(os.Stderr, "error: --pretty-urls requires --upload-dir\n")
 			os.Exit(usageExitCode)
 		}
+	}
+
+	if *commentFlag != "" && (*uploadDirFlag == "" && *redirectFlag == "") {
+		// The comment is embedded in a tar file.
+		fmt.Fprintf(os.Stderr, "error: --comment requires --upload-dir or --redirect\n")
+		os.Exit(usageExitCode)
 	}
 
 	var err error

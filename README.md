@@ -145,6 +145,7 @@ To retrieve the site manifest (for debugging only: manifest schema is not versio
 ```console
 $ git-pages-cli https://example.org --password xyz --debug-manifest
 {
+  "comment": "0000000000000000000000000000000000000000",
   "contents": {
     "": {
       "type": "Directory"
@@ -163,6 +164,12 @@ $ git-pages-cli https://example.org --password xyz --debug-manifest
   "headers": [],
   "problems": []
 }
+```
+
+To embed a free-form comment in the site manifest, for example to record the exact commit from which a site has been built:
+
+```console
+$ git-pages-cli https://example.org --password xyz --upload-dir site-contents --comment "$(git rev-parse HEAD)"
 ```
 
 
