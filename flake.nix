@@ -54,7 +54,7 @@
             "-s -w"
           ];
 
-          go = pkgs.go_1_25;
+          go = pkgs.go_1_27;
           modules = ./gomod2nix.toml;
         };
       in
