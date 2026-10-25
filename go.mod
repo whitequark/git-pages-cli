@@ -1,6 +1,6 @@
 module codeberg.org/git-pages/git-pages-cli
 
-go 1.26.1
+go 1.26.10
 
 require (
 	codeberg.org/git-pages/go-redirects v1.0.0
@@ -10,6 +10,7 @@ require (
 	golang.org/x/net v0.61.0
 )
 
-require golang.org/x/text v0.43.0 // indirect
-
-require github.com/pkg/errors v0.9.1 // indirect
+require (
+	golang.org/x/text v0.43.0 // indirect
+	github.com/pkg/errors v0.9.1 // indirect
+)
