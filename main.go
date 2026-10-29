@@ -65,6 +65,7 @@ var expiresFlag = pflag.Uint("expires", 0, "schedule site to be expired after `<
 var prettyURLsFlag = pflag.Bool("pretty-urls", false, "enable Netlify-style URL redirects")
 var commentFlag = pflag.String("comment", "", "(git-pages 0.10+) embed `<comment>` into site manifest")
 var dryRunFlag = pflag.BoolP("dry-run", "n", false, "only check authorization, don't update")
+var strictFlag = pflag.BoolP("strict", "e", false, "(git-pages 0.11+) abort deploy on any problem with the site")
 var verboseFlag = pflag.BoolP("verbose", "v", false, "display more information for debugging")
 var debugRequestFlag = pflag.Bool("debug-body", false, "dump request body for debugging")
 var versionFlag = pflag.BoolP("version", "V", false, "display version information")
@@ -708,6 +709,9 @@ func main() {
 	}
 	if *dryRunFlag {
 		request.Header.Add("Dry-Run", "yes")
+	}
+	if *strictFlag {
+		request.Header.Add("If-Problems", "none")
 	}
 	if *serverFlag != "" {
 		// Send the request to `--server` host, but set the `Host:` header to the site host.
