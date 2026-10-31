@@ -1,8 +1,9 @@
 # Changelog
 
-## Unreleased
+## v1.13.0
 
 * Changed: git-pages-cli requires Go 1.26.10.
+* Added: `--strict` option, supported since git-pages v0.10.1+git94f29c73.
 
 ## v1.12.1
 
