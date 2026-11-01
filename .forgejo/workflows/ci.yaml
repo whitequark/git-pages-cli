@@ -13,14 +13,14 @@ jobs:
   check:
     runs-on: debian-trixie
     container:
-      image: docker.io/library/node:24-trixie-slim@sha256:366fdef91728b1b7fa18c84fba63b6e79ed77b7e10cc206878e9705da4d7b169
+      image: docker.io/library/node:24-trixie-slim@sha256:ae91dcc111a68c9d2d81ff2a17bda61be126426176fde6fe7d08ab13b7f50573
     steps:
       - name: Check out source code
         uses: https://code.forgejo.org/actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - name: Set up toolchain
         uses: https://code.forgejo.org/actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
-          go-version: '>=1.26.2 <1.27.2' # upper limit for staticcheck at 2026-10-09
+          go-version: '>=1.26.10 <1.27.2' # upper limit for staticcheck at 2026-10-09
       - name: Install dependencies
         run: |
           apt-get -y update
@@ -40,7 +40,7 @@ jobs:
     needs: [check]
     runs-on: debian-trixie
     container:
-      image: docker.io/library/node:24-trixie-slim@sha256:366fdef91728b1b7fa18c84fba63b6e79ed77b7e10cc206878e9705da4d7b169
+      image: docker.io/library/node:24-trixie-slim@sha256:ae91dcc111a68c9d2d81ff2a17bda61be126426176fde6fe7d08ab13b7f50573
     steps:
       - name: Install dependencies
         run: |
@@ -53,7 +53,7 @@ jobs:
       - name: Set up toolchain
         uses: https://code.forgejo.org/actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
-          go-version: '>=1.26.2'
+          go-version: '>=1.26.10'
       - name: Build release assets
         # If you want more platforms to be represented, send a pull request.
         run: |
@@ -80,7 +80,7 @@ jobs:
     needs: [check]
     runs-on: debian-trixie
     container:
-      image: docker.io/library/node:24-trixie-slim@sha256:366fdef91728b1b7fa18c84fba63b6e79ed77b7e10cc206878e9705da4d7b169
+      image: docker.io/library/node:24-trixie-slim@sha256:ae91dcc111a68c9d2d81ff2a17bda61be126426176fde6fe7d08ab13b7f50573
     steps:
       - name: Install dependencies
         run: |
