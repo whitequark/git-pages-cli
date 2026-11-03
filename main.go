@@ -481,7 +481,7 @@ func main() {
 	if *passwordFileFlag != "" {
 		contents, err := os.ReadFile(*passwordFileFlag)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "error: invalid password file: %s\n", err)
+			fmt.Fprintf(os.Stderr, "error: invalid --password-file: %s\n", err)
 			os.Exit(1)
 		}
 		// Trim all trailing newlines; there's no legitimate reason to have one in a password.
@@ -489,15 +489,21 @@ func main() {
 	}
 
 	if *serverFlag != "" {
-		serverHost, _, err := net.SplitHostPort(*serverFlag)
+		serverHost, serverPort, err := net.SplitHostPort(*serverFlag)
 		if err != nil {
+			// Not a `host:port` pair.
+			serverHost = *serverFlag
+		} else if _, err = strconv.ParseUint(serverPort, 10, 16); err != nil {
+			// A `host:port` pair where the `port` value is nonsensical. This is actually quite
+			// common: `https://grebedoc.dev` for example will be split into `https` being
+			// the "host" and `//grebedoc.dev` being the "port".
 			serverHost = *serverFlag
 		}
 
 		var idnaProfile = idna.New(idna.MapForLookup(), idna.BidiRule())
 		// See an explanation in git-pages auth.go for why this replacement is done.
 		if _, err := idnaProfile.ToASCII(strings.ReplaceAll(serverHost, "_", "a")); err != nil {
-			fmt.Fprintf(os.Stderr, "error: --server must be used with a domain name: %q\n", serverHost)
+			fmt.Fprintf(os.Stderr, "error: invalid --server: expected domain name and optional port: %q\n", serverHost)
 			os.Exit(usageExitCode)
 		}
 	}
