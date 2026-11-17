@@ -10,20 +10,20 @@ schema = 3
     hash = 'sha256-VWl9sqUzdOuhW0KzQlv0gwwUQClYkmZwSydHG2sALYw='
 
   [mod.'github.com/klauspost/compress']
-    version = 'v1.19.0'
-    hash = 'sha256-8tAQw82P+RzHACxt5Y8vV8jY+oHvKGCVyHCvMNdNiXM='
+    version = 'v1.20.3'
+    hash = 'sha256-34ifN/7hw8GbGDEAjOxfYK2ndxkzeQJf4tS/ynJzhXM='
 
   [mod.'github.com/pkg/errors']
     version = 'v0.9.1'
     hash = 'sha256-mNfQtcrQmu3sNg/7IwiieKWOgFQOVVe2yXgKBpe/wZw='
 
   [mod.'github.com/spf13/pflag']
-    version = 'v1.0.10'
-    hash = 'sha256-uDPnWjHpSrzXr17KEYEA1yAbizfcsfo5AyztY2tS6ZU='
+    version = 'v1.1.0'
+    hash = 'sha256-B7mjsUWaV/ltrpt8mGFyqeLQBpRd7Xcif019pAjWv+w='
 
   [mod.'golang.org/x/net']
-    version = 'v0.61.0'
-    hash = 'sha256-yCy7Bik5cvIVfX7G08rVYhkVDuro3sPk3iicVz4j/kA='
+    version = 'v0.62.0'
+    hash = 'sha256-BX+i/MyhVigz/sDRJNGydfkimaeAHAFtrRN//eXuZFY='
 
   [mod.'golang.org/x/text']
     version = 'v0.43.0'

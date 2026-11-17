@@ -120,7 +120,7 @@ jobs:
           VER: ${{ startsWith(forgejo.event.ref, 'refs/tags/v') && forgejo.ref_name || 'latest' }}
 
   gomod2nix:
-    if: ${{ (forgejo.event_name == 'push' && (forgejo.event.ref == 'refs/heads/main' || startsWith(forgejo.event.ref, 'refs/heads/renovate/'))) || inputs.gomod2nix }}
+    if: ${{ (forgejo.event_name == 'push' && startsWith(forgejo.event.ref, 'refs/heads/renovate/')) || forgejo.event_name == 'pull_request' }}
     runs-on: ["medium", "debian-13-x86_64"]
     steps:
       - name: Install Nix
@@ -131,16 +131,17 @@ jobs:
         run: |
           nix develop --command gomod2nix
           nix build
-      - id: diff
-        name: Diff gomod2nix
+      - if: ${{ forgejo.event_name == 'pull_request' }}
+        name: Diff gomod2nix (check)
         run: |
-          git diff --color
-          echo "exitcode=$(git diff --exit-code --quiet; echo $?)" >> $FORGEJO_OUTPUT
-      - if: ${{ steps.diff.outputs.exitcode == '1' }}
-        name: Commit updated file
+          git diff --color --exit-code
+      - if: ${{ forgejo.event_name != 'pull_request' }}
+        name: Diff gomod2nix (auto-commit)
         run: |
-          git config set user.name forgejo-actions
-          git config set user.email noreply@forgejo.org
-          git add -u
-          git commit -m "Auto-update gomod2nix."
-          git push
+          if ! git diff --color --exit-code; then
+            git config set user.name forgejo-actions
+            git config set user.email noreply@forgejo.org
+            git add -u
+            git commit -m "Auto-update gomod2nix."
+            git push
+          fi
