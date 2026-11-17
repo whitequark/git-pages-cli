@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - v*
     tags:
       - v*
   pull_request:
@@ -11,9 +12,7 @@ on:
 
 jobs:
   check:
-    runs-on: debian-trixie
-    container:
-      image: docker.io/library/node:26-trixie-slim@sha256:5adad64f9a1fca2d51972caa65983634c8a774eb300d72b20f7f2a0f60368072
+    runs-on: ["medium", "debian-13-x86_64"]
     steps:
       - name: Check out source code
         uses: https://code.forgejo.org/actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -23,8 +22,8 @@ jobs:
           go-version: '>=1.26.10 <1.27.2' # upper limit for staticcheck at 2026-10-09
       - name: Install dependencies
         run: |
-          apt-get -y update
-          apt-get -y install ca-certificates
+          sudo apt-get -y update
+          sudo DEBIAN_FRONTEND=noninteractive apt-get -y install ca-certificates
           go install honnef.co/go/tools/cmd/staticcheck@latest
       - name: Build application
         run: |
@@ -36,16 +35,14 @@ jobs:
 
   release:
     # IMPORTANT: This workflow step will not work without the Releases unit enabled!
-    if: ${{ forge.ref == 'refs/heads/main' || startsWith(forge.event.ref, 'refs/tags/v') }}
+    if: ${{ forgejo.ref == 'refs/heads/main' || startsWith(forgejo.event.ref, 'refs/tags/v') }}
     needs: [check]
-    runs-on: debian-trixie
-    container:
-      image: docker.io/library/node:26-trixie-slim@sha256:5adad64f9a1fca2d51972caa65983634c8a774eb300d72b20f7f2a0f60368072
+    runs-on: ["medium", "debian-13-x86_64"]
     steps:
       - name: Install dependencies
         run: |
-          apt-get -y update
-          apt-get -y install ca-certificates git
+          sudo apt-get -y update
+          sudo DEBIAN_FRONTEND=noninteractive apt-get -y install ca-certificates git
       - name: Check out source code
         uses: https://code.forgejo.org/actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -68,24 +65,22 @@ jobs:
       - name: Create release
         uses: https://code.forgejo.org/actions/forgejo-release@98265452477dafb3f0f27ba9c462c90b18cb44fd # v2.13.4
         with:
-          tag: ${{ startsWith(forge.event.ref, 'refs/tags/v') && forge.ref_name || 'latest' }}
+          tag: ${{ startsWith(forgejo.event.ref, 'refs/tags/v') && forgejo.ref_name || 'latest' }}
           release-dir: assets
           hide-archive-link: true
           direction: upload
           override: true
-          prerelease: ${{ !startsWith(forge.event.ref, 'refs/tags/v') }}
+          prerelease: ${{ !startsWith(forgejo.event.ref, 'refs/tags/v') }}
 
   package:
-    if: ${{ forge.ref == 'refs/heads/main' || startsWith(forge.event.ref, 'refs/tags/v') }}
+    if: ${{ forgejo.ref == 'refs/heads/main' || startsWith(forgejo.event.ref, 'refs/tags/v') }}
     needs: [check]
-    runs-on: debian-trixie
-    container:
-      image: docker.io/library/node:26-trixie-slim@sha256:5adad64f9a1fca2d51972caa65983634c8a774eb300d72b20f7f2a0f60368072
+    runs-on: ["medium", "debian-13-x86_64"]
     steps:
       - name: Install dependencies
         run: |
-          apt-get -y update
-          apt-get -y install ca-certificates buildah qemu-user-binfmt
+          sudo apt-get -y update
+          sudo DEBIAN_FRONTEND=noninteractive apt-get -y install ca-certificates buildah qemu-user-binfmt
       - name: Check out source code
         uses: https://code.forgejo.org/actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Build container
@@ -96,23 +91,23 @@ jobs:
           buildah manifest create container container:amd64 container:arm64
         env:
           BUILDAH_ISOLATION: chroot
-      - if: ${{ forge.repository == 'git-pages/git-pages-cli' }}
+      - if: ${{ forgejo.repository == 'git-pages/git-pages-cli' }}
         name: Push container to Codeberg
         run: |
           buildah login --authfile=/tmp/authfile.json \
             -u ${{ vars.PACKAGES_USER }} -p ${{ secrets.PACKAGES_TOKEN }} ${FORGE}
           buildah manifest push --authfile=/tmp/authfile.json \
-            --all container "docker://${FORGE}/${{ forge.repository }}:${VER/v/}"
+            --all container "docker://${FORGE}/${{ forgejo.repository }}:${VER/v/}"
         env:
           FORGE: codeberg.org
-          VER: ${{ startsWith(forge.event.ref, 'refs/tags/v') && forge.ref_name || 'latest' }}
-      - if: ${{ forge.repository == 'git-pages/git-pages-cli' }}
+          VER: ${{ startsWith(forgejo.event.ref, 'refs/tags/v') && forgejo.ref_name || 'latest' }}
+      - if: ${{ forgejo.repository == 'git-pages/git-pages-cli' }}
         name: Push container to code.forgejo.org
         run: |
           buildah login --authfile=/tmp/authfile.json \
             -u ${{ vars.PACKAGES_USER }} -p ${{ secrets.CFO_PACKAGES_TOKEN }} ${FORGE}
           buildah manifest push --authfile=/tmp/authfile.json \
-            --all container "docker://${FORGE}/${{ forge.repository }}:${VER/v/}"
+            --all container "docker://${FORGE}/${{ forgejo.repository }}:${VER/v/}"
         env:
           FORGE: code.forgejo.org
-          VER: ${{ startsWith(forge.event.ref, 'refs/tags/v') && forge.ref_name || 'latest' }}
+          VER: ${{ startsWith(forgejo.event.ref, 'refs/tags/v') && forgejo.ref_name || 'latest' }}
