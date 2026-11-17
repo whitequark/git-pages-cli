@@ -5,7 +5,6 @@ on:
     branches:
       - main
       - v*
-      - renovate/*
     tags:
       - v*
   pull_request:
@@ -120,22 +119,20 @@ jobs:
           VER: ${{ startsWith(forgejo.event.ref, 'refs/tags/v') && forgejo.ref_name || 'latest' }}
 
   gomod2nix:
-    if: ${{ (forgejo.event_name == 'push' && startsWith(forgejo.event.ref, 'refs/heads/renovate/')) || forgejo.event_name == 'pull_request' }}
     runs-on: ["medium", "debian-13-x86_64"]
     steps:
       - name: Install Nix
         uses: https://github.com/cachix/install-nix-action@ab739621df7a23f52766f9ccc97f38da6b7af14f # v31
       - name: Check out source code
         uses: https://code.forgejo.org/actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          token: ${{ secrets.PUSH_TOKEN || forgejo.token }}
       - name: Regenerate gomod2nix
         run: |
           nix develop --command gomod2nix
           nix build
-      - if: ${{ forgejo.event_name == 'pull_request' }}
-        name: Diff gomod2nix (check)
-        run: |
-          git diff --color --exit-code
-      - if: ${{ forgejo.event_name != 'pull_request' }}
+      # Automatic update.
+      - if: ${{ forgejo.event_name == 'pull_request' && startsWith(forgejo.head_ref, 'renovate/') }}
         name: Diff gomod2nix (auto-commit)
         run: |
           if ! git diff --color --exit-code; then
@@ -143,5 +140,10 @@ jobs:
             git config set user.email noreply@forgejo.org
             git add -u
             git commit -m "Auto-update gomod2nix."
-            git push
+            git push origin HEAD:${{ forgejo.head_ref }}
           fi
+      # Manual update. It's not clear how to make automatic update work in forks.
+      - if: ${{ !(forgejo.event_name == 'pull_request' && startsWith(forgejo.head_ref, 'renovate/')) }}
+        name: Diff gomod2nix (check)
+        run: |
+          git diff --color --exit-code
