@@ -9,12 +9,6 @@ on:
       - v*
   pull_request:
   workflow_dispatch:
-    inputs:
-      gomod2nix:
-        description: 'Regenerate gomod2nix.toml'
-        type: boolean
-        required: false
-        default: true
 
 jobs:
   check:
