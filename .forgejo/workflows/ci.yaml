@@ -42,7 +42,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get -y update
-          sudo DEBIAN_FRONTEND=noninteractive apt-get -y install ca-certificates git
+          sudo DEBIAN_FRONTEND=noninteractive apt-get -y install ca-certificates git curl
       - name: Check out source code
         uses: https://code.forgejo.org/actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -85,7 +85,7 @@ jobs:
         uses: https://code.forgejo.org/actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Build container
         run: |
-          printf '[storage]\ndriver="vfs"\nrunroot="/run/containers/storage"\ngraphroot="/var/lib/containers/storage"\n' | tee /etc/containers/storage.conf
+          printf '[storage]\ndriver="vfs"\nrunroot="/run/containers/storage"\ngraphroot="/var/lib/containers/storage"\n' | sudo tee /etc/containers/storage.conf
           buildah build --arch=amd64 --tag=container:amd64
           buildah build --arch=arm64 --tag=container:arm64
           buildah manifest create container container:amd64 container:arm64
