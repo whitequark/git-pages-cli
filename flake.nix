@@ -44,18 +44,25 @@
             ];
           };
 
-          buildInputs = with pkgs; [
-            pkgsStatic.musl
-          ];
+          buildInputs = pkgs.lib.optionals pkgs.stdenv.targetPlatform.isLinux (
+            with pkgs;
+            [
+              pkgsStatic.musl
+            ]
+          );
 
           ldflags = [
             "-linkmode external"
+          ]
+          ++ pkgs.lib.optionals pkgs.stdenv.targetPlatform.isLinux [
             "-extldflags -static"
             "-s -w"
           ];
 
           go = pkgs.go_1_27;
           modules = ./gomod2nix.toml;
+
+          meta.mainProgram = "git-pages-cli";
         };
       in
       {
