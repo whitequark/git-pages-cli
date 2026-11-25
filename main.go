@@ -194,7 +194,9 @@ func displayFS(root *os.Root, prefix string) error {
 type Unit = struct{}
 
 func prettyURLsFS(root fs.FS, rootPath string) ([]redirects.Rule, error) {
-	rootPath = path.Clean(rootPath)
+	if rootPath != "" {
+		rootPath = path.Clean(rootPath)
+	}
 	if rootPath != "/" {
 		rootPath += "/"
 	}
