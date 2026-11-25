@@ -22,7 +22,7 @@ You can install _git-pages-cli_ using one of the following methods:
 
 1. **Installing a package**.
 
-   [![Packaging status](https://repology.org/badge/vertical-allrepos/git-pages-cli.svg)](https://repology.org/project/git-pages-cli/versions)
+   [![Packaging status](https://repology.org/badge/vertical-allrepos/git-pages-cli.svg?columns=3)](https://repology.org/project/git-pages-cli/versions)
 
 1. **Using a Docker container**. Choose between the latest build or a [release tag][containers]. Then run:
 
